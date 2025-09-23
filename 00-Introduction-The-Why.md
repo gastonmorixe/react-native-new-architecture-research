@@ -1,6 +1,6 @@
 # Chapter 1: Introduction - The "Why"
 
-The React Native New Architecture is arguably the most significant evolution in the framework's history. While it became the default in the React Native 0.76 release in 2024 [2], its story begins much earlier. The vision was first shared with the community in a 2018 presentation at React Conf [1]. This marked the beginning of a multi-year effort to fundamentally re-imagine the communication layer between JavaScript and the native host platform.
+The React Native New Architecture is arguably the most significant evolution in the framework's history. While it became the default in the React Native 0.76 release in 2024[^2], its story begins much earlier. The vision was first shared with the community in a 2018 presentation at React Conf[^1]. This marked the beginning of a multi-year effort to fundamentally re-imagine the communication layer between JavaScript and the native host platform.
 
 This was not a minor refactoring but a deep, foundational change designed to address systemic performance bottlenecks and unlock new capabilities for the framework. To fully appreciate the new architecture, one must first understand the limitations of the system it replaced: the original architecture, centered around a component known as "the Bridge."
 
@@ -38,5 +38,5 @@ To achieve this vision, the team built the new architecture on three core pillar
 
 **Citations:**
 
-[1] Parashuram N, "React Native's New Architecture" (React Conf 2018). [https://www.youtube.com/watch?v=U-i-7I8uSJE](https://www.youtube.com/watch?v=U-i-7I8uSJE)
-[2] "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
+[^1]: Parashuram N, "React Native's New Architecture" (React Conf 2018). [https://www.youtube.com/watch?v=U-i-7I8uSJE](https://www.youtube.com/watch?v=U-i-7I8uSJE)
+[^2]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)

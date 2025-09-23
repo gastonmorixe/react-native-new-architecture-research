@@ -25,3 +25,6 @@
 2025-09-23 01:05
 - Corrected checklist to reference RCTIsNewArchitectureEnabled().
 
+2025-09-23 04:58
+- Converted chapter citations to footnotes for proper anchor navigation.
+

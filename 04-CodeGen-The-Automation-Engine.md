@@ -1,6 +1,6 @@
 # Chapter 5: CodeGen - The Automation Engine
 
-The New Architecture's goals of performance and type safety are enabled by the JSI, Fabric, and TurboModules. However, the glue that binds them together and makes the system practical for developers is **CodeGen**. CodeGen is a build-time tool that automates the creation of the boilerplate interface code required to connect the JavaScript world to the native C++ core, as detailed in the official "Using Codegen" guide. [2]
+The New Architecture's goals of performance and type safety are enabled by the JSI, Fabric, and TurboModules. However, the glue that binds them together and makes the system practical for developers is **CodeGen**. CodeGen is a build-time tool that automates the creation of the boilerplate interface code required to connect the JavaScript world to the native C++ core, as detailed in the official "Using Codegen" guide.[^2]
 
 Its source code can be found in the repository at `packages/react-native-codegen/` [1].
 
@@ -92,5 +92,5 @@ This automated process is the key to the New Architecture's type safety. By gene
 
 **Citations:**
 
-[1] `packages/react-native-codegen/`
-[2] "Using Codegen". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/using-codegen](https://reactnative.dev/docs/next/the-new-architecture/using-codegen)
+[^1]: `packages/react-native-codegen/`
+[^2]: "Using Codegen". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/using-codegen](https://reactnative.dev/docs/next/the-new-architecture/using-codegen)

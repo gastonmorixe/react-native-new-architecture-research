@@ -4,13 +4,13 @@ The primary motivation for the New Architecture was to address the performance b
 
 ## The Official Stance vs. Real-World Results
 
-Interestingly, Meta's official position upon the rollout was that their internal goal was to achieve "neutral performance" across their own applications [1]. Their focus was on building a more robust and capable foundation for the future of React Native, rather than achieving a simple "2x faster" metric. However, benchmarks from the wider community have consistently shown significant performance gains in the specific areas the New Architecture was designed to improve.
+Interestingly, Meta's official position upon the rollout was that their internal goal was to achieve "neutral performance" across their own applications.[^1] Their focus was on building a more robust and capable foundation for the future of React Native, rather than achieving a simple "2x faster" metric. However, benchmarks from the wider community have consistently shown significant performance gains in the specific areas the New Architecture was designed to improve.
 
 ## App Startup Time
 
 **Conclusion:** Startup time is significantly improved.
 
-This is one of the clearest and most universally reported benefits. In the legacy architecture, all native modules had to be initialized at app launch. The New Architecture introduces **lazy loading** for TurboModules.
+This is one of the clearest and most universally reported benefits. In the legacy architecture, all native modules had to be initialized at app launch. The New Architecture introduces **lazy loading** for TurboModules.[^2]
 
 -   **Mechanism:** A TurboModule is not instantiated until the first time it is accessed from JavaScript. For an app with dozens of native modules, this avoids a large amount of upfront work, leading to a noticeably faster startup time until the first screen is interactive [2].
 
@@ -20,9 +20,9 @@ This is one of the clearest and most universally reported benefits. In the legac
 
 Fabric, the new rendering system, addresses the UI-related bottlenecks of the old UIManager.
 
--   **CPU and Memory Efficiency:** Community benchmarks have shown dramatic improvements. One test involving processor-intensive UI tasks recorded a drop in average **CPU usage from 131% to 81%** and a decrease in **memory consumption from 334MB to 238MB** when comparing the legacy architecture to Fabric [3].
--   **Concurrent Rendering:** Fabric enables Concurrent React features, which allow React Native to prioritize UI updates and avoid blocking the main thread during heavy rendering tasks. This leads to smoother animations and a more responsive feel [4].
--   **Third-Party Validation:** The team behind the Kraken browser engine, when using React Native, reported "significantly faster render times" with the New Architecture, noting that the improvements were most pronounced on slower devices [5].
+-   **CPU and Memory Efficiency:** Community benchmarks have shown dramatic improvements. One test involving processor-intensive UI tasks recorded a drop in average **CPU usage from 131% to 81%** and a decrease in **memory consumption from 334MB to 238MB** when comparing the legacy architecture to Fabric.[^3]
+-   **Concurrent Rendering:** Fabric enables Concurrent React features, which allow React Native to prioritize UI updates and avoid blocking the main thread during heavy rendering tasks. This leads to smoother animations and a more responsive feel.[^4]
+-   **Third-Party Validation:** The team behind the Kraken browser engine, when using React Native, reported "significantly faster render times" with the New Architecture, noting that the improvements were most pronounced on slower devices.[^5]
 
 ## Native Module Invocation Speed (JSI & TurboModules)
 
@@ -30,8 +30,8 @@ Fabric, the new rendering system, addresses the UI-related bottlenecks of the ol
 
 This is a direct result of replacing the asynchronous, JSON-serializing Bridge with the direct, synchronous JSI.
 
--   **Latency Reduction:** For high-frequency calls between JavaScript and native, the reduction in overhead is massive. Some reports have cited a **10x to 1000x reduction in call time** for individual invocations [6].
--   **CPU-Bound Tasks:** The ability to write synchronous, C++-backed TurboModules unlocks new possibilities. One case study demonstrated a **50x performance increase** for a bcrypt hashing function by implementing it in a C++ TurboModule with multithreading, a task that would have been impractically slow over the old Bridge [7].
+-   **Latency Reduction:** For high-frequency calls between JavaScript and native, the reduction in overhead is massive. Some reports have cited a **10x to 1000x reduction in call time** for individual invocations.[^6]
+-   **CPU-Bound Tasks:** The ability to write synchronous, C++-backed TurboModules unlocks new possibilities. One case study demonstrated a **50x performance increase** for a bcrypt hashing function by implementing it in a C++ TurboModule with multithreading, a task that would have been impractically slow over the old Bridge.[^7]
 
 ## Summary of Findings
 
@@ -47,10 +47,10 @@ The data shows that for the vast majority of real-world applications, migrating 
 
 **Citations:**
 
-[1] Callstack, "React Native's New Architecture - A Bumpy Road to a Smooth Ride". [https://www.callstack.com/blog/react-natives-new-architecture-a-bumpy-road-to-a-smooth-ride](https://www.callstack.com/blog/react-natives-new-architecture-a-bumpy-road-to-a-smooth-ride)
-[2] React Native documentation, "Turbo Native Modules". [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
-[3] Medium, "React Native New Architecture: Fabric". [https://medium.com/@elbahjat.abdel/react-native-new-architecture-fabric-8d244799b04f](https://medium.com/@elbahjat.abdel/react-native-new-architecture-fabric-8d244799b04f)
-[4] React Native documentation, "Renderer". [https://reactnative.dev/docs/next/the-new-architecture/renderer](https://reactnative.dev/docs/next/the-new-architecture/renderer)
-[5] dev.to, "React Native's New Architecture: The Story of a Long-Awaited Promise". [https://dev.to/koubas/react-natives-new-architecture-the-story-of-a-long-awaited-promise-4m9b](https://dev.to/koubas/react-natives-new-architecture-the-story-of-a-long-awaited-promise-4m9b)
-[6] Medium, "React Native New Architecture: JSI". [https://medium.com/@elbahjat.abdel/react-native-new-architecture-jsi-c-api-for-js-975a71743c32](https://medium.com/@elbahjat.abdel/react-native-new-architecture-jsi-c-api-for-js-975a71743c32)
-[7] Reddit, "50x performance increase for bcrypt hashing". [https://www.reddit.com/r/reactnative/comments/13p2n3j/50x_performance_increase_for_bcrypt_hashing_by/](https://www.reddit.com/r/reactnative/comments/13p2n3j/50x_performance_increase_for_bcrypt_hashing_by/)
+[^1]: Callstack, "React Native's New Architecture - A Bumpy Road to a Smooth Ride". [https://www.callstack.com/blog/react-natives-new-architecture-a-bumpy-road-to-a-smooth-ride](https://www.callstack.com/blog/react-natives-new-architecture-a-bumpy-road-to-a-smooth-ride)
+[^2]: React Native documentation, "Turbo Native Modules". [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
+[^3]: Medium, "React Native New Architecture: Fabric". [https://medium.com/@elbahjat.abdel/react-native-new-architecture-fabric-8d244799b04f](https://medium.com/@elbahjat.abdel/react-native-new-architecture-fabric-8d244799b04f)
+[^4]: React Native documentation, "Renderer". [https://reactnative.dev/docs/next/the-new-architecture/renderer](https://reactnative.dev/docs/next/the-new-architecture/renderer)
+[^5]: dev.to, "React Native's New Architecture: The Story of a Long-Awaited Promise". [https://dev.to/koubas/react-natives-new-architecture-the-story-of-a-long-awaited-promise-4m9b](https://dev.to/koubas/react-natives-new-architecture-the-story-of-a-long-awaited-promise-4m9b)
+[^6]: Medium, "React Native New Architecture: JSI". [https://medium.com/@elbahjat.abdel/react-native-new-architecture-jsi-c-api-for-js-975a71743c32](https://medium.com/@elbahjat.abdel/react-native-new-architecture-jsi-c-api-for-js-975a71743c32)
+[^7]: Reddit, "50x performance increase for bcrypt hashing". [https://www.reddit.com/r/reactnative/comments/13p2n3j/50x_performance_increase_for_bcrypt_hashing_by/](https://www.reddit.com/r/reactnative/comments/13p2n3j/50x_performance_increase_for_bcrypt_hashing_by/)

@@ -2,11 +2,11 @@
 
 Understanding the new architecture is the first step; the next is adopting it. For developers with existing React Native applications, this involves a clear migration path. For new applications, the New Architecture is enabled by default as of React Native 0.76, so the process involves learning the new, modern APIs.
 
-This chapter serves as a practical guide to enabling the New Architecture and migrating legacy native modules and components. For a complete, in-depth guide, developers should always refer to the official React Native documentation [1].
+This chapter serves as a practical guide to enabling the New Architecture and migrating legacy native modules and components. For a complete, in-depth guide, developers should always refer to the official React Native documentation.[^1]
 
 ## Step 1: Prerequisites and Enabling the New Architecture
 
-Upgrade to React Native 0.76 or newer before migrating. Starting with that release stream, the New Architecture ships enabled by default, so the template projects already opt you in. [4]
+Upgrade to React Native 0.76 or newer before migrating. Starting with that release stream, the New Architecture ships enabled by default, so the template projects already opt you in.[^4]
 
 **For Android:**
 
@@ -29,7 +29,7 @@ use_react_native!(
 )
 ```
 
-> **Deprecated guidance:** Older instructions recommended adding `:new_arch_enabled => true`. That parameter has been deprecated and ignored in upstream React Native; the helper sets `ENV['RCT_NEW_ARCH_ENABLED'] = '1'` internally, so leaving the call unmodified keeps you on the supported path. [5]
+> **Deprecated guidance:** Older instructions recommended adding `:new_arch_enabled => true`. That parameter has been deprecated and ignored in upstream React Native; the helper sets `ENV['RCT_NEW_ARCH_ENABLED'] = '1'` internally, so leaving the call unmodified keeps you on the supported path.[^5]
 
 To temporarily disable the New Architecture on iOS, add the environment override before invoking CocoaPods:
 
@@ -41,11 +41,11 @@ use_react_native!(
 )
 ```
 
-Then run `bundle exec pod install` (or `RCT_NEW_ARCH_ENABLED=0 bundle exec pod install` from the command line) so CocoaPods regenerates with the flag applied. [4]
+Then run `bundle exec pod install` (or `RCT_NEW_ARCH_ENABLED=0 bundle exec pod install` from the command line) so CocoaPods regenerates with the flag applied.[^4]
 
 ## Step 2: Migrating a Legacy Native Module to a TurboModule
 
-The migration process for a native module centers on creating a formal spec and updating the native class to conform to the generated interface. The official documentation provides a detailed guide for this process [2].
+The migration process for a native module centers on creating a formal spec and updating the native class to conform to the generated interface. The official documentation provides a detailed guide for this process.[^2]
 
 **1. Create the JavaScript Spec**
 
@@ -73,7 +73,7 @@ The native classes must now implement the interface that CodeGen generates from 
 
 ## Step 3: Migrating a Legacy View Manager to a Fabric Component
 
-Migrating a UI component follows a similar pattern: define a spec, configure CodeGen, and update the native implementation. The official documentation also provides a specific guide for Fabric components [3].
+Migrating a UI component follows a similar pattern: define a spec, configure CodeGen, and update the native implementation. The official documentation also provides a specific guide for Fabric components.[^3]
 
 **1. Create the JavaScript Spec**
 
@@ -102,8 +102,8 @@ A critical part of the migration is to check third-party libraries that use nati
 
 **Citations:**
 
-[1] "Migrating to the New Architecture". React Native Documentation. [https://reactnative.dev/docs/new-architecture-intro](https://reactnative.dev/docs/new-architecture-intro)
-[2] "TurboModules". React Native Documentation. [https://reactnative.dev/docs/new-architecture-turbomodules](https://reactnative.dev/docs/new-architecture-turbomodules)
-[3] "Fabric Native Components". React Native Documentation. [https://reactnative.dev/docs/new-architecture-fabric-components](https://reactnative.dev/docs/new-architecture-fabric-components)
-[4] "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
-[5] CHANGELOG entry "Remove possibility to newArchEnabled=false in 0.82". React Native GitHub Repository. [https://github.com/facebook/react-native/blob/main/CHANGELOG.md](https://github.com/facebook/react-native/blob/main/CHANGELOG.md)
+[^1]: "Migrating to the New Architecture". React Native Documentation. [https://reactnative.dev/docs/new-architecture-intro](https://reactnative.dev/docs/new-architecture-intro)
+[^2]: "TurboModules". React Native Documentation. [https://reactnative.dev/docs/new-architecture-turbomodules](https://reactnative.dev/docs/new-architecture-turbomodules)
+[^3]: "Fabric Native Components". React Native Documentation. [https://reactnative.dev/docs/new-architecture-fabric-components](https://reactnative.dev/docs/new-architecture-fabric-components)
+[^4]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
+[^5]: CHANGELOG entry "Remove possibility to newArchEnabled=false in 0.82". React Native GitHub Repository. [https://github.com/facebook/react-native/blob/main/CHANGELOG.md](https://github.com/facebook/react-native/blob/main/CHANGELOG.md)

@@ -14,7 +14,7 @@ The New Architecture is not a single feature, but a collection of interconnected
 
 -   **CodeGen** is the automated tooling that provides compile-time type safety. By generating native interface code from a single JavaScript source of truth, it eliminates an entire class of common runtime errors and makes developing native integrations more robust and maintainable.
 
--   **Bridgeless Mode**, the default since React Native 0.74, represents the culmination of these efforts. By completely removing the legacy Bridge, it unlocks the full performance potential of the new components and simplifies the framework's overall architecture. [1]
+-   **Bridgeless Mode**, the default since React Native 0.74, represents the culmination of these efforts. By completely removing the legacy Bridge, it unlocks the full performance potential of the new components and simplifies the framework's overall architecture.[^1]
 
 ## The Impact: A More Performant and Capable Framework
 
@@ -28,7 +28,7 @@ With the New Architecture now the default, the foundation is set for the next er
 -   **Further Performance Optimizations:** With the core bottlenecks removed, the community and the React Native team can now focus on more granular performance tuning at the JSI, Fabric, and TurboModule levels.
 -   **A More Stable Developer Experience:** The move towards type-safe, spec-driven development will continue, making the creation of robust native modules and components more accessible and reliable.
 
-In conclusion, the React Native New Architecture is a resounding success. It has addressed the core limitations of the past and established a powerful, performant, and scalable foundation that will allow the framework to evolve and thrive for years to come. For any developer in the React Native ecosystem, understanding and embracing this new paradigm is no longer optional—it is the path forward. [2]
+In conclusion, the React Native New Architecture is a resounding success. It has addressed the core limitations of the past and established a powerful, performant, and scalable foundation that will allow the framework to evolve and thrive for years to come. For any developer in the React Native ecosystem, understanding and embracing this new paradigm is no longer optional—it is the path forward.[^2]
 
 ---
 
@@ -38,5 +38,5 @@ In conclusion, the React Native New Architecture is a resounding success. It has
 
 **Citations:**
 
-[1] "React Native 0.74 - Yoga 3.0, Bridgeless New Architecture, and more". React Native Blog. [https://reactnative.dev/blog/2024/04/22/release-0.74](https://reactnative.dev/blog/2024/04/22/release-0.74)
-[2] "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
+[^1]: "React Native 0.74 - Yoga 3.0, Bridgeless New Architecture, and more". React Native Blog. [https://reactnative.dev/blog/2024/04/22/release-0.74](https://reactnative.dev/blog/2024/04/22/release-0.74)
+[^2]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
