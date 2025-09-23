@@ -1,6 +1,6 @@
 # Chapter 4: TurboModules - The New Native Modules
 
-TurboModules are the second pillar of the New Architecture, representing a complete overhaul of the native module system. They replace the legacy system based on `RCTBridgeModule` and are designed from the ground up to be more performant, type-safe, and efficient. Just like Fabric, TurboModules are built directly on the foundation of the JSI.
+TurboModules are the second pillar of the New Architecture, representing a complete overhaul of the native module system. They replace the legacy system based on `RCTBridgeModule` and are designed from the ground up to be more performant, type-safe, and efficient. Just like Fabric, TurboModules are built directly on the foundation of the JSI and are the officially supported approach for new native modules in React Native 0.76+. [3]
 
 ## The Motivation: Problems with Legacy Native Modules
 
@@ -107,3 +107,4 @@ On Android, the approach is similar. A native module class implements the `com.f
 
 [1] `packages/react-native/ReactCommon/react/nativemodule/core/ReactCommon/TurboModule.h`
 [2] `packages/react-native/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.h`
+[3] "Turbo Native Modules". React Native Documentation. [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)

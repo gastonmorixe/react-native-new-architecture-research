@@ -10,3 +10,18 @@
 2025-09-23 00:01
 - Reviewed staged chapter renames and README TOC update; preparing final commit and push.
 
+2025-09-23 00:38
+- Reviewing 06-Migration-And-Adoption.md guidance against upstream codebase and latest docs before updating recommendations.
+
+2025-09-23 00:45
+- Updated migration guide to drop deprecated :new_arch_enabled flag, document default enablement, and show opt-out flow.
+
+2025-09-23 00:48
+- Beginning sequential review of all research chapters against upstream repo and next docs.
+
+2025-09-23 00:58
+- Completed chapter-by-chapter alignment with repo and next docs; updated citations, case study details, Nitro coverage, tutorial fixes, and resource checklist.
+
+2025-09-23 01:05
+- Corrected checklist to reference RCTIsNewArchitectureEnabled().
+

@@ -48,9 +48,9 @@ The data shows that for the vast majority of real-world applications, migrating 
 **Citations:**
 
 [1] Callstack, "React Native's New Architecture - A Bumpy Road to a Smooth Ride". [https://www.callstack.com/blog/react-natives-new-architecture-a-bumpy-road-to-a-smooth-ride](https://www.callstack.com/blog/react-natives-new-architecture-a-bumpy-road-to-a-smooth-ride)
-[2] React Native documentation, "TurboModules". [https://reactnative.dev/docs/new-architecture-turbomodules](https://reactnative.dev/docs/new-architecture-turbomodules)
+[2] React Native documentation, "Turbo Native Modules". [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
 [3] Medium, "React Native New Architecture: Fabric". [https://medium.com/@elbahjat.abdel/react-native-new-architecture-fabric-8d244799b04f](https://medium.com/@elbahjat.abdel/react-native-new-architecture-fabric-8d244799b04f)
-[4] React Native documentation, "The New Architecture: Renderer". [https://reactnative.dev/docs/the-new-architecture/renderer](https://reactnative.dev/docs/the-new-architecture/renderer)
+[4] React Native documentation, "Renderer". [https://reactnative.dev/docs/next/the-new-architecture/renderer](https://reactnative.dev/docs/next/the-new-architecture/renderer)
 [5] dev.to, "React Native's New Architecture: The Story of a Long-Awaited Promise". [https://dev.to/koubas/react-natives-new-architecture-the-story-of-a-long-awaited-promise-4m9b](https://dev.to/koubas/react-natives-new-architecture-the-story-of-a-long-awaited-promise-4m9b)
 [6] Medium, "React Native New Architecture: JSI". [https://medium.com/@elbahjat.abdel/react-native-new-architecture-jsi-c-api-for-js-975a71743c32](https://medium.com/@elbahjat.abdel/react-native-new-architecture-jsi-c-api-for-js-975a71743c32)
 [7] Reddit, "50x performance increase for bcrypt hashing". [https://www.reddit.com/r/reactnative/comments/13p2n3j/50x_performance_increase_for_bcrypt_hashing_by/](https://www.reddit.com/r/reactnative/comments/13p2n3j/50x_performance_increase_for_bcrypt_hashing_by/)

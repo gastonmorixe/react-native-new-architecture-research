@@ -18,15 +18,23 @@ Adopting the New Architecture effectively involves more than just avoiding mista
 
 ## TurboModule Practices
 
--   **Do** keep synchronous methods trivial and fast. They are perfect for fetching simple, pre-calculated values that are already in memory.
--   **Don't** ever perform I/O (network, disk), heavy computation, or any potentially long-running task in a synchronous TurboModule method. This will block the JS thread and freeze your app.
--   **Do** use Promises for any method that is asynchronous or might take more than a millisecond to complete. This is the standard and expected pattern for async work.
+-   **Do** keep synchronous methods trivial and fast. They are perfect for fetching simple, pre-calculated values that are already in memory. [1]
+-   **Don't** ever perform I/O (network, disk), heavy computation, or any potentially long-running task in a synchronous TurboModule method. This will block the JS thread and freeze your app. [1]
+-   **Do** use Promises for any method that is asynchronous or might take more than a millisecond to complete. This is the standard and expected pattern for async work. [1]
 -   **Don't** rely on callbacks. While they may be supported by the interop layer, Promises are the forward-looking standard for async operations in TurboModules.
 
 ## Fabric Component Practices
 
--   **Do** use the `updateProps` method efficiently. It is a diffing mechanism. Use it only to apply the changed properties to your native view.
--   **Don't** perform expensive allocations or setup work inside `updateProps`. Place one-time setup code in the view's native initializer.
--   **Do** use commands for one-off, imperative actions. If you need to trigger an action on a native view (e.g., `focus()`, `clear()`), defining it as a command is much more efficient than changing a prop to trigger the effect.
--   **Don't** use props for ephemeral, event-like triggers. For example, to trigger an animation, it's better to use a command like `myView.startAnimation()` than to toggle a prop like `shouldAnimate={true}`.
--   **Do** colocate your component's related files. A good pattern is to have a single directory containing the JS spec, the iOS implementation (`.mm`), and the Android implementation (`.java`/`.kt`) for a single component.
+-   **Do** use the `updateProps` method efficiently. It is a diffing mechanism. Use it only to apply the changed properties to your native view. [2]
+-   **Don't** perform expensive allocations or setup work inside `updateProps`. Place one-time setup code in the view's native initializer. [2]
+-   **Do** use commands for one-off, imperative actions. If you need to trigger an action on a native view (e.g., `focus()`, `clear()`), defining it as a command is much more efficient than changing a prop to trigger the effect. [3]
+-   **Don't** use props for ephemeral, event-like triggers. For example, to trigger an animation, it's better to use a command like `myView.startAnimation()` than to toggle a prop like `shouldAnimate={true}`. [3]
+-   **Do** colocate your component's related files. A good pattern is to have a single directory containing the JS spec, the iOS implementation (`.mm`), and the Android implementation (`.java`/`.kt`) for a single component. [2]
+
+---
+
+**Citations:**
+
+[1] "Turbo Native Modules". React Native Documentation. [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
+[2] "Fabric Native Components: iOS". React Native Documentation. [https://reactnative.dev/docs/next/fabric-native-components-introduction](https://reactnative.dev/docs/next/fabric-native-components-introduction)
+[3] "Fabric Component Native Commands". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/fabric-component-native-commands](https://reactnative.dev/docs/next/the-new-architecture/fabric-component-native-commands)

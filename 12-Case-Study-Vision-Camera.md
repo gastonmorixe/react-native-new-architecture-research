@@ -4,11 +4,11 @@ To understand how the New Architecture is applied in a complex, real-world libra
 
 ## Standard New Architecture Components
 
-At its base, Vision Camera uses the standard New Architecture components as expected:
+At its base, Vision Camera aims to support the New Architecture, but its adoption is still in progress:
 
--   **Fabric Component:** The `<Camera>` component itself is a Fabric Native Component. This allows it to be rendered efficiently and to have its props (like `device`, `isActive`, `zoom`) updated directly from the C++ layer, avoiding the overhead of the legacy UIManager. The native view (`CameraView.swift` on iOS) inherits from the Fabric base classes and implements methods like `updateProps` to respond to changes.
+-   **View Layer (Legacy View Manager with New Architecture compatibility):** The `<Camera>` component is implemented by a `RCTViewManager` subclass (`CameraViewManager.swift`) and a legacy `requireNativeComponent` wrapper. [1][2] The manager still relies on `bridge.uiManager.view(forReactTag:)`, but the codepaths are guarded with `BuildConfig.IS_NEW_ARCHITECTURE_ENABLED` so the module can resolve views through Fabric's `UIManager` when the New Architecture is active. [3]
 
--   **TurboModule:** The library also exposes a TurboModule for imperative API calls that don't belong to a specific view instance. This includes functions for getting available camera devices (`getCameraDevices()`) and requesting permissions. This follows the best practice of using TurboModules for non-UI functionality.
+-   **Module Layer (Classic Native Module with JSI hooks):** Imperative APIs such as `takePhoto`, `startRecording`, and the frame-processor installation entry point live in `CameraViewModule.kt`, which extends `ReactContextBaseJavaModule`. [3] The module bridges to the UI thread when necessary and currently exposes synchronous bindings via `@ReactMethod(isBlockingSynchronousMethod = true)` rather than a generated TurboModule. Migration to a C++ TurboModule is tracked in the repository but not yet complete.
 
 ## Advanced JSI: The Frame Processor
 
@@ -33,7 +33,7 @@ The `'worklet'` directive is a signal to the `react-native-reanimated` Babel plu
 
 **2. The `Frame` Host Object**
 
-The `frame` object passed to the worklet is not a plain JavaScript object. It is a **`jsi::HostObject`**. The C++ header file for this object, found in the library's source at `package/ios/FrameProcessors/FrameHostObject.h`, confirms this:
+The `frame` object passed to the worklet is not a plain JavaScript object. It is a **`jsi::HostObject`**. The C++ header file for this object, found in the library's source at `package/android/src/main/cpp/frameprocessors/FrameHostObject.h`, confirms this:
 
 ```cpp
 // From Vision Camera's FrameHostObject.h
@@ -65,4 +65,13 @@ This entire process happens for every single frame, with minimal overhead, no se
 
 ## Conclusion
 
-`react-native-vision-camera` is a quintessential example of the New Architecture's power. It uses Fabric and TurboModules for its standard UI and API, and it pushes the JSI to its full potential with `HostObject`s to enable high-performance, real-time features that were previously unthinkable. It serves as a blueprint for how to build the next generation of powerful React Native libraries.
+`react-native-vision-camera` demonstrates how a mature library can progressively adopt pieces of the New Architecture. Its UI and imperative modules still use legacy entry points while remaining compatible with Fabric builds, and its Frame Processor system pushes the JSI to its full potential with `HostObject`s to enable high-performance, real-time features that were previously unthinkable. Tracking these patterns is a practical way to understand how production codebases bridge the gap between the legacy architecture and the new one.
+
+---
+
+**Citations:**
+
+[1] `package/ios/React/CameraViewManager.swift`
+[2] `package/src/NativeCameraView.ts`
+[3] `package/android/src/main/java/com/mrousavy/camera/react/CameraViewModule.kt`
+[4] `package/android/src/main/cpp/frameprocessors/FrameHostObject.h`

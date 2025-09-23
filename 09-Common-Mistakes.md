@@ -35,14 +35,14 @@ The New Architecture introduces powerful concepts, but also new ways for things 
 
 **Mistake: Module name mismatch.**
 
--   **Why it's a mistake:** JavaScript finds a TurboModule by its name. If the name you provide in `TurboModuleRegistry.getEnforcing<Spec>('MyModule')` does not exactly match the name provided in the native implementation (e.g., in the `ReactPackage` on Android or the `getTurboModule` registration on iOS), the module will not be found, and your app will crash on startup.
+-   **Why it's a mistake:** JavaScript finds a TurboModule by its name. If the name you provide in `TurboModuleRegistry.getEnforcing<Spec>('MyModule')` does not exactly match the name provided in the native implementation (e.g., in the `ReactPackage` on Android or the `getTurboModule` registration on iOS), the module will not be found, and your app will crash on startup. [1]
 -   **How to avoid:** Ensure the module name is identical across the JS spec and all native registration points.
 
 ## Fabric Component Mistakes
 
 **Mistake: Treating `updateProps` as a constructor or a one-time setup.**
 
--   **Why it's a mistake:** The `updateProps` method on a native component view will be called many times throughout the component's lifecycle—every time a prop changes. Performing expensive, one-time setup work inside it is inefficient.
+-   **Why it's a mistake:** The `updateProps` method on a native component view will be called many times throughout the component's lifecycle—every time a prop changes. Performing expensive, one-time setup work inside it is inefficient. [2]
 -   **How to avoid:** Use the view's native initializer (e.g., `init` on iOS) for one-time setup. Use `updateProps` only for applying the new properties to the view.
 
 **Mistake: Passing frequently changing values as props.**
@@ -54,10 +54,18 @@ The New Architecture introduces powerful concepts, but also new ways for things 
 
 **Mistake: Forgetting to rebuild after changing a spec.**
 
--   **Why it's a mistake:** CodeGen runs during the build process. If you change a JavaScript spec file (e.g., add a new method to a TurboModule), the native interface code is not automatically updated. You must re-run the build (`pod install` for iOS, or a Gradle build for Android) to regenerate the native files.
+-   **Why it's a mistake:** CodeGen runs during the build process. If you change a JavaScript spec file (e.g., add a new method to a TurboModule), the native interface code is not automatically updated. You must re-run the build (`pod install` for iOS, or a Gradle build for Android) to regenerate the native files. [3]
 -   **How to avoid:** After any change to a `Spec` file, perform a clean build of your native project to ensure the generated code is up-to-date.
 
 **Mistake: Incorrect `codegenConfig` in `package.json`.**
 
--   **Why it's a mistake:** If the `jsSrcsDir` or other paths in the `codegenConfig` are incorrect, the CodeGen script won't find your spec files and will not generate any code, leading to compilation errors.
+-   **Why it's a mistake:** If the `jsSrcsDir` or other paths in the `codegenConfig` are incorrect, the CodeGen script won't find your spec files and will not generate any code, leading to compilation errors. [3]
 -   **How to avoid:** Double-check all paths and package names in the `codegenConfig` section to ensure they are correct.
+
+---
+
+**Citations:**
+
+[1] "Turbo Native Modules". React Native Documentation. [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
+[2] "Fabric Native Components: iOS". React Native Documentation. [https://reactnative.dev/docs/next/fabric-native-components-introduction](https://reactnative.dev/docs/next/fabric-native-components-introduction)
+[3] "Using Codegen". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/using-codegen](https://reactnative.dev/docs/next/the-new-architecture/using-codegen)

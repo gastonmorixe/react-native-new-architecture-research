@@ -4,11 +4,11 @@ This chapter addresses common high-level questions about the React Native New Ar
 
 **1. Do I have to migrate to the New Architecture?**
 
-For now, the legacy architecture is still supported. However, as of React Native 0.76, the New Architecture is the default for new projects. All future development of React Native core and new React features (like Concurrent Rendering) will be built for the New Architecture. It is highly recommended to migrate to stay current and ensure the future viability of your application.
+For now, the legacy architecture is still supported. However, as of React Native 0.76, the New Architecture is the default for new projects. [1] All future development of React Native core and new React features (like Concurrent Rendering) will be built for the New Architecture. It is highly recommended to migrate to stay current and ensure the future viability of your application.
 
 **2. Is the Bridge completely gone in the New Architecture?**
 
-In **Bridgeless Mode** (the default for new architecture apps since RN 0.74), the original message-queue Bridge is no longer initialized or used. However, an **interoperability layer** still exists to support legacy native modules. So, while the old performance-bottleneck Bridge is gone, the system can still communicate with old modules.
+In **Bridgeless Mode** (the default for new architecture apps since RN 0.74), the original message-queue Bridge is no longer initialized or used. [2] However, an **interoperability layer** still exists to support legacy native modules. So, while the old performance-bottleneck Bridge is gone, the system can still communicate with old modules.
 
 **3. Can I still use my old native modules and components?**
 
@@ -27,10 +27,20 @@ Not necessarily to *use* it, but it is highly beneficial if you are *writing* na
 
 This is a common issue during migration. The most frequent causes are:
 
--   **Name Mismatch:** The name used in `TurboModuleRegistry.getEnforcing('MyModule')` in JavaScript does not exactly match the name registered in the native code (e.g., in the `ReactPackage` on Android).
--   **CodeGen Not Run:** You have created or changed the JS `Spec` file but have not rebuilt the app. You must re-run `pod install` or rebuild your Gradle project to trigger CodeGen and link the new module.
+-   **Name Mismatch:** The name used in `TurboModuleRegistry.getEnforcing('MyModule')` in JavaScript does not exactly match the name registered in the native code (e.g., in the `ReactPackage` on Android). [3]
+-   **CodeGen Not Run:** You have created or changed the JS `Spec` file but have not rebuilt the app. You must re-run `pod install` or rebuild your Gradle project to trigger CodeGen and link the new module. [4]
 -   **Module Not Registered:** The module has not been properly registered in your Android `ReactPackage` or your iOS `Podfile`.
 
 **7. Is the New Architecture always faster than the old one?**
 
-For most real-world applications, yes. The benefits in app startup (from lazy loading), UI responsiveness (from Fabric), and native call speed (from JSI) are significant. However, in some very simple, static rendering scenarios, the overhead of the new architecture's more complex machinery can make it appear marginally slower than the legacy system. The true benefits shine in complex applications with many native interactions and dynamic UIs.
+For most real-world applications, yes. The benefits in app startup (from lazy loading), UI responsiveness (from Fabric), and native call speed (from JSI) are significant. [1][5] However, in some very simple, static rendering scenarios, the overhead of the new architecture's more complex machinery can make it appear marginally slower than the legacy system. The true benefits shine in complex applications with many native interactions and dynamic UIs.
+
+---
+
+**Citations:**
+
+[1] "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
+[2] "React Native 0.74 - Yoga 3.0, Bridgeless New Architecture, and more". React Native Blog. [https://reactnative.dev/blog/2024/04/22/release-0.74](https://reactnative.dev/blog/2024/04/22/release-0.74)
+[3] "Turbo Native Modules". React Native Documentation. [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
+[4] "Using Codegen". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/using-codegen](https://reactnative.dev/docs/next/the-new-architecture/using-codegen)
+[5] "Renderer". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/renderer](https://reactnative.dev/docs/next/the-new-architecture/renderer)

@@ -6,29 +6,42 @@ This chapter serves as a practical guide to enabling the New Architecture and mi
 
 ## Step 1: Prerequisites and Enabling the New Architecture
 
-Before migrating, ensure your project is updated to a recent version of React Native (0.76+ is recommended). The process of enabling the New Architecture is a simple configuration change.
+Upgrade to React Native 0.76 or newer before migrating. Starting with that release stream, the New Architecture ships enabled by default, so the template projects already opt you in. [4]
 
 **For Android:**
 
-In your `android/gradle.properties` file, add or set the following flag:
+Keep the `android/gradle.properties` flag in sync with the template:
 
 ```properties
 newArchEnabled=true
 ```
 
+If you need to opt out temporarily (for example, while waiting on a dependency update), flip the flag to `false`, rebuild, and remember to restore it when you are ready to re-enable the New Architecture.
+
 **For iOS:**
 
-In your `ios/Podfile`, find the `use_react_native!` call and add the `:new_arch_enabled` flag:
+The CocoaPods helper now enables the New Architecture automatically. Call `use_react_native!` exactly as in the current template—no additional flags required:
 
 ```ruby
 use_react_native!(
   :path => config[:reactNativePath],
-  # Enable the New Architecture for iOS
-  :new_arch_enabled => true
+  :app_path => "#{Pod::Config.instance.installation_root}/.."
 )
 ```
 
-After updating the `Podfile`, you must run `pod install` from the `ios` directory. With these flags in place, the project will build with Fabric and TurboModules enabled.
+> **Deprecated guidance:** Older instructions recommended adding `:new_arch_enabled => true`. That parameter has been deprecated and ignored in upstream React Native; the helper sets `ENV['RCT_NEW_ARCH_ENABLED'] = '1'` internally, so leaving the call unmodified keeps you on the supported path. [5]
+
+To temporarily disable the New Architecture on iOS, add the environment override before invoking CocoaPods:
+
+```ruby
+ENV['RCT_NEW_ARCH_ENABLED'] = '0'
+use_react_native!(
+  :path => config[:reactNativePath],
+  :app_path => "#{Pod::Config.instance.installation_root}/.."
+)
+```
+
+Then run `bundle exec pod install` (or `RCT_NEW_ARCH_ENABLED=0 bundle exec pod install` from the command line) so CocoaPods regenerates with the flag applied. [4]
 
 ## Step 2: Migrating a Legacy Native Module to a TurboModule
 
@@ -92,3 +105,5 @@ A critical part of the migration is to check third-party libraries that use nati
 [1] "Migrating to the New Architecture". React Native Documentation. [https://reactnative.dev/docs/new-architecture-intro](https://reactnative.dev/docs/new-architecture-intro)
 [2] "TurboModules". React Native Documentation. [https://reactnative.dev/docs/new-architecture-turbomodules](https://reactnative.dev/docs/new-architecture-turbomodules)
 [3] "Fabric Native Components". React Native Documentation. [https://reactnative.dev/docs/new-architecture-fabric-components](https://reactnative.dev/docs/new-architecture-fabric-components)
+[4] "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
+[5] CHANGELOG entry "Remove possibility to newArchEnabled=false in 0.82". React Native GitHub Repository. [https://github.com/facebook/react-native/blob/main/CHANGELOG.md](https://github.com/facebook/react-native/blob/main/CHANGELOG.md)

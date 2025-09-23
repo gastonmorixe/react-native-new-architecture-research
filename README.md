@@ -41,7 +41,7 @@ This document serves as the central hub for a detailed, 16-chapter report on the
 ### Part 3: Real-World Examples & Tooling
 
 *   [Chapter 13: Case Study - `react-native-vision-camera`](./12-Case-Study-Vision-Camera.md)
-    *   An analysis of a complex Fabric component and its advanced use of JSI for Frame Processors.
+    *   An analysis of how a production library blends legacy view managers with JSI frame processors while preparing for the New Architecture.
 *   [Chapter 14: Alternative Tooling - Nitro](./13-Alternative-Tooling-Nitro.md)
     *   An exploration of a high-level framework that provides an alternative developer experience for creating native modules.
 *   [Chapter 15: Tutorial - Building a Native Module and Component](./14-Tutorial-Building-From-Scratch.md)
