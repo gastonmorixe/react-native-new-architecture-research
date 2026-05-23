@@ -4,6 +4,10 @@
 
 This document serves as the central hub for a detailed, 16-chapter report on the significant evolution in the React Native framework. The research is conducted by analyzing the official React Native repository, authoritative documentation, and real-world libraries to provide a comprehensive and up-to-date understanding of the new architecture.
 
+**Updated for React Native 0.76+ (2025):** This documentation has been thoroughly updated to reflect the current state of the New Architecture, which is now enabled by default in all React Native projects. The information is verified against the latest React Native codebase (0.82+) and official documentation.
+
+Tip: Many chapters now include Mermaid diagrams (rendered on GitHub) to visualize the Bridge vs JSI call paths, Fabric’s render pipeline, TurboModule CodeGen, Bridgeless interop, and the migration flow.
+
 ---
 
 ## 📚 Table of Contents

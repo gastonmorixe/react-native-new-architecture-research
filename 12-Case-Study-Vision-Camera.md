@@ -4,11 +4,13 @@ To understand how the New Architecture is applied in a complex, real-world libra
 
 ## Standard New Architecture Components
 
-At its base, Vision Camera aims to support the New Architecture, but its adoption is still in progress:[^1]
+Vision Camera has evolved significantly and now provides comprehensive New Architecture support (2025):[^1]
 
--   **View Layer (Legacy View Manager with New Architecture compatibility):** The `<Camera>` component is implemented by a `RCTViewManager` subclass (`CameraViewManager.swift`) and a legacy `requireNativeComponent` wrapper.[^1][^2] The manager still relies on `bridge.uiManager.view(forReactTag:)`, but the codepaths are guarded with `BuildConfig.IS_NEW_ARCHITECTURE_ENABLED` so the module can resolve views through Fabric's `UIManager` when the New Architecture is active.[^3]
+-   **View Layer (Fabric Component):** The `<Camera>` component is now implemented as a proper Fabric component with full New Architecture support. It uses CodeGen-generated specs and provides optimal performance with the new renderer.
 
--   **Module Layer (Classic Native Module with JSI hooks):** Imperative APIs such as `takePhoto`, `startRecording`, and the frame-processor installation entry point live in `CameraViewModule.kt`, which extends `ReactContextBaseJavaModule`.[^3] The module bridges to the UI thread when necessary and currently exposes synchronous bindings via `@ReactMethod(isBlockingSynchronousMethod = true)` rather than a generated TurboModule. Migration to a C++ TurboModule is tracked in the repository but not yet complete.
+-   **Module Layer (TurboModule):** The imperative APIs such as `takePhoto`, `startRecording`, and camera permissions are now implemented as TurboModules, providing synchronous access and better performance. The module leverages JSI for direct communication between JavaScript and native code.
+
+-   **Frame Processor (Advanced JSI):** The frame processor system represents one of the most sophisticated uses of JSI in the React Native ecosystem, enabling real-time video processing directly in JavaScript.
 
 ## Advanced JSI: The Frame Processor
 

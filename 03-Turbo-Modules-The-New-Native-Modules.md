@@ -2,6 +2,21 @@
 
 TurboModules are the second pillar of the New Architecture, representing a complete overhaul of the native module system. They replace the legacy system based on `RCTBridgeModule` and are designed from the ground up to be more performant, type-safe, and efficient. Just like Fabric, TurboModules are built directly on the foundation of the JSI and are the officially supported approach for new native modules in React Native 0.76+.[^3]
 
+**Current Status (2025):** TurboModules are now the default native module system in React Native 0.76+. All new native modules should be implemented as TurboModules, and the legacy `RCTBridgeModule` system is deprecated.
+
+## Visual: TurboModule + CodeGen Pipeline
+
+```mermaid
+flowchart LR
+  Spec[TypeScript Spec\n(define interface)] --> CodeGen[CodeGen]
+  CodeGen --> iOS[ObjC/Swift scaffolding]
+  CodeGen --> Android[C++/Kotlin scaffolding]
+  JS[JS Module\nTurboModuleRegistry.getEnforcing()] --> JSI[JSI]
+  JSI --> NativeImpl[Native Impl\n(ObjC/Swift/C++)]
+  NativeImpl --> Platform[iOS/Android APIs]
+  JS <-->|sync/async| JSI
+```
+
 ## The Motivation: Problems with Legacy Native Modules
 
 Legacy native modules, while powerful, suffered from limitations tied directly to their reliance on the asynchronous Bridge:

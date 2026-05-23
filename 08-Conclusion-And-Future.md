@@ -14,7 +14,9 @@ The New Architecture is not a single feature, but a collection of interconnected
 
 -   **CodeGen** is the automated tooling that provides compile-time type safety. By generating native interface code from a single JavaScript source of truth, it eliminates an entire class of common runtime errors and makes developing native integrations more robust and maintainable.
 
--   **Bridgeless Mode**, the default since React Native 0.74, represents the culmination of these efforts. By completely removing the legacy Bridge, it unlocks the full performance potential of the new components and simplifies the framework's overall architecture.[^1]
+-   **Bridgeless Mode**, the runtime where the legacy message-queue Bridge is not initialized, has been the default when the New Architecture is enabled since React Native 0.74. This unleashes the performance potential of the new components while retaining an interoperability layer for legacy modules; the legacy architecture is being phased out, not retroactively removed from existing apps.[^1]
+
+-   **React 18 Concurrent Features** are now fully supported, bringing automatic batching, transitions, and Suspense to React Native applications, creating a unified development experience across web and mobile platforms.
 
 ## The Impact: A More Performant and Capable Framework
 
@@ -22,11 +24,13 @@ The performance analysis shows that these architectural changes have yielded sig
 
 ## The Future of React Native
 
-With the New Architecture now the default, the foundation is set for the next era of React Native development. The framework is now fully equipped to integrate with the latest and future advancements in the React ecosystem. We can expect to see:
+With the New Architecture now the default in React Native 0.76+ (as of 2025), the foundation is set for the next era of React Native development. Bridgeless mode is the default for New Architecture apps starting in 0.74, and the legacy Bridge remains only for interop via compatibility layers. We can expect to see:
 
 -   **Deeper Integration with Concurrent React:** Features like Suspense for data fetching, which were previously difficult to implement, can now be fully realized, leading to more sophisticated and user-friendly loading and transition experiences.
 -   **Further Performance Optimizations:** With the core bottlenecks removed, the community and the React Native team can now focus on more granular performance tuning at the JSI, Fabric, and TurboModule levels.
 -   **A More Stable Developer Experience:** The move towards type-safe, spec-driven development will continue, making the creation of robust native modules and components more accessible and reliable.
+-   **Web Alignment:** Active development is underway to align React Native more closely with web React, including updates to the event loop model, Node and layout APIs, and styling conformance.
+-   **Enhanced Tooling:** The ecosystem continues to evolve with tools like Nitro providing alternative approaches to native module development, pushing the boundaries of performance and developer experience.
 
 In conclusion, the React Native New Architecture is a resounding success. It has addressed the core limitations of the past and established a powerful, performant, and scalable foundation that will allow the framework to evolve and thrive for years to come. For any developer in the React Native ecosystem, understanding and embracing this new paradigm is no longer optional—it is the path forward.[^2]
 
@@ -38,5 +42,5 @@ In conclusion, the React Native New Architecture is a resounding success. It has
 
 **Citations:**
 
-[^1]: "React Native 0.74 - Yoga 3.0, Bridgeless New Architecture, and more". React Native Blog. [https://reactnative.dev/blog/2024/04/22/release-0.74](https://reactnative.dev/blog/2024/04/22/release-0.74)
+[^1]: "React Native 0.76 - New Architecture by Default". React Native Blog. [https://reactnative.dev/blog/2024/10/15/release-0.76](https://reactnative.dev/blog/2024/10/15/release-0.76)
 [^2]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)

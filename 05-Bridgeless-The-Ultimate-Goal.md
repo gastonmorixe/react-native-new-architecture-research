@@ -10,6 +10,23 @@ Bridgeless mode is not a new component or a separate piece of technology. It is 
 
 In a non-bridgeless (but still New Architecture-enabled) app, the Bridge might still exist to support legacy native modules that haven't been migrated to TurboModules. In Bridgeless mode, this compatibility layer is still present, but the core message queue and its associated overhead are gone. All interactions, whether with a modern TurboModule or a legacy module via the interop layer, are ultimately funneled through the synchronous, direct JSI path.
 
+## Visual: Bridgeless vs Non‑Bridgeless
+
+```mermaid
+flowchart TB
+  subgraph NA[New Architecture Enabled]
+    JSI[JSI Runtime]
+    TM[TurboModules]
+    Interop[Interop Layer]
+    Legacy[RCTBridgeModule (legacy)]
+  end
+
+  JSI --> TM
+  JSI --> Interop --> Legacy
+
+  note left of NA: Bridgeless default since 0.74 when NA is enabled\nLegacy Bridge process is not initialized
+```
+
 ## The Benefits of a Bridgeless World
 
 Running without the Bridge unlocks the full potential of the New Architecture, leading to several key benefits:

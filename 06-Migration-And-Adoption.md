@@ -2,7 +2,23 @@
 
 Understanding the new architecture is the first step; the next is adopting it. For developers with existing React Native applications, this involves a clear migration path. For new applications, the New Architecture is enabled by default as of React Native 0.76, so the process involves learning the new, modern APIs.
 
+**Important Note:** While opt-out remains supported in current versions, the React Native team has indicated plans to remove the legacy Bridge architecture in future versions. Extensive deprecation warnings throughout the codebase mark Bridge-related APIs as "will be removed along with the legacy architecture."[^5] Developers should plan for eventual migration to avoid future breaking changes.
+
 This chapter serves as a practical guide to enabling the New Architecture and migrating legacy native modules and components. For a complete, in-depth guide, developers should always refer to the official React Native documentation.[^1]
+
+## Visual: Migration Flow
+
+```mermaid
+flowchart TD
+  A[Upgrade to RN 0.76+] --> B[Enable NA in template\n(Android: newArchEnabled=true)\n(iOS: use_react_native! default)]
+  B --> C[Audit native dependencies\n(update or replace)]
+  C --> D[Migrate Native Modules\n→ TurboModules]
+  D --> E[Migrate View Managers\n→ Fabric Components]
+  E --> F[End-to-end tests & perf checks]
+  B --> G{Temporary opt-out needed?}
+  G -->|Android| H[newArchEnabled=false]
+  G -->|iOS| I[ENV['RCT_NEW_ARCH_ENABLED']='0']
+```
 
 ## Step 1: Prerequisites and Enabling the New Architecture
 
@@ -29,7 +45,7 @@ use_react_native!(
 )
 ```
 
-> **Deprecated guidance:** Older instructions recommended adding `:new_arch_enabled => true`. That parameter has been deprecated and ignored in upstream React Native; the helper sets `ENV['RCT_NEW_ARCH_ENABLED'] = '1'` internally, so leaving the call unmodified keeps you on the supported path.[^5]
+> **Deprecated guidance:** Older instructions recommended adding `:new_arch_enabled => true`. That parameter is no longer used by the template; the helper enables the New Architecture internally, so leaving the call unmodified keeps you on the supported path.[^4]
 
 To temporarily disable the New Architecture on iOS, add the environment override before invoking CocoaPods:
 
@@ -106,4 +122,4 @@ A critical part of the migration is to check third-party libraries that use nati
 [^2]: "TurboModules". React Native Documentation. [https://reactnative.dev/docs/new-architecture-turbomodules](https://reactnative.dev/docs/new-architecture-turbomodules)
 [^3]: "Fabric Native Components". React Native Documentation. [https://reactnative.dev/docs/new-architecture-fabric-components](https://reactnative.dev/docs/new-architecture-fabric-components)
 [^4]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/architecture/landing-page](https://reactnative.dev/docs/next/architecture/landing-page)
-[^5]: CHANGELOG entry "Remove possibility to newArchEnabled=false in 0.82". React Native GitHub Repository. [https://github.com/facebook/react-native/blob/main/CHANGELOG.md](https://github.com/facebook/react-native/blob/main/CHANGELOG.md)
+[^5]: React Native Codebase Deprecation Warnings. Multiple files including `RCTAppDelegate.h`, `RCTReactNativeFactory.h`, `RCTArchConfiguratorProtocol.h`, and numerous Bridge-related classes marked with `__attribute__((deprecated("This API will be removed along with the legacy architecture.")))`. [https://github.com/facebook/react-native](https://github.com/facebook/react-native)
