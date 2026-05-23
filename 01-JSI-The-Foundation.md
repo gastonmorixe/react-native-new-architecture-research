@@ -1,10 +1,46 @@
+---
+title: "JSI: The Foundation"
+chapter: "01"
+created_at: "2025-09-22T15:30:19-04:00"
+updated_at: "2026-05-23T16:16:35-0400"
+session_id: "audit-worker-01-jsi"
+host_info:
+  hostname: "macbookpro.home.arpa"
+  user: "gaston"
+  os: "macOS 26.5 (..)"
+  kernel: "25.5.0"
+  arch: "arm64"
+rn_version_origin:
+  version: "0.81.4"
+  tag: "v0.81.4"
+  date: "2025-09-10"
+  note: "Closest stable release at the chapter's original bootstrap date (2025-09-22)."
+rn_version_current:
+  version: "0.86.0-rc.1+main"
+  tag: "v0.86.0-rc.1"
+  commit: "b32a6c9e9db2284547183e2d48ffa0a45a73fbc6"
+  date: "2026-05-22"
+  note: "Upstream RN main HEAD as of the audit. Past v0.86.0-rc.1 by ~30 commits."
+tags: [react-native, new-architecture, jsi, hermes, jsc, hostobject, hostfunction, cpp]
+audit:
+  status: "verified"
+  baseline_branch: "audit/baseline-2026-05-23"
+  verified_branch: "audit/verified-2026-05-23"
+  report: "_verification/chapters/01-jsi/report.md"
+taillog:
+  - "2025-09-22T15:30:19-04:00 | Initial draft (RN 0.81.4 era)"
+  - "2026-05-23T16:16:35-0400 | Source-grounded audit pass against RN 0.86 (commit b32a6c9e9db). Fixed: removed non-existent Runtime::cloneValue; corrected PropNameID::compare to static call; replaced invalid ArrayBuffer(rt, size_t) and ArrayBuffer(rt, void*, size_t) ctors with MutableBuffer pattern; clarified default HostObject::set throws; noted variadic paramCount narrowing; added IRuntime/Runtime split context; expanded Value predicates. See _verification/chapters/01-jsi/report.md."
+---
+
 # Chapter 2: JSI - The Foundation
 
 At the very heart of the New Architecture lies the **JavaScript Interface (JSI)**. It is the foundational layer that replaces the old, asynchronous Bridge and makes the performance and interoperability goals of the new architecture possible. The JSI is not a specific implementation but rather a lightweight, engine-agnostic C++ API that allows for direct, synchronous, and bidirectional communication between JavaScript and a native language.
 
-Its definition can be found in the repository here: `packages/react-native/ReactCommon/jsi/jsi/jsi.h` [1]. Understanding the JSI is crucial because every other component of the New Architecture—Fabric, TurboModules, and even CodeGen—is built upon it.
+Its definition can be found in the repository here: `packages/react-native/ReactCommon/jsi/jsi/jsi.h` [^1]. Understanding the JSI is crucial because every other component of the New Architecture—Fabric, TurboModules, and even CodeGen—is built upon it.
 
-**Current Status (2025):** JSI is now the standard communication layer in React Native 0.76+. It powers all new native modules and components, providing significant performance improvements over the legacy Bridge architecture.
+**Status as of v0.86 (`main`, commit `b32a6c9e9db`):** JSI is the only communication layer between JS and native code in the New Architecture, and the New Architecture has been **on by default since React Native 0.76 (October 2024)** [^2]. JSI itself has been the path for Hermes since long before 0.76. What 0.76 actually flipped on by default is the *stack built on JSI*: Fabric, TurboModules, and Bridgeless. As of v0.86, the legacy Bridge is being removed entirely from new app templates.
+
+A note on terminology before we go further: in older RN versions the public C++ class users worked against was `jsi::Runtime`. The current source promotes `jsi::IRuntime` as the abstract interface and keeps `jsi::Runtime` as a backwards-compatible class that inherits from it [^3]. Either type works in user code, because `Runtime : public IRuntime`. The snippets in this chapter use `jsi::Runtime&` because that's the form most existing TurboModule and Vision Camera code uses, but you'll see `IRuntime&` in the upstream headers.
 
 ## Visual: JSI Call Path and Data Flow
 
@@ -111,28 +147,37 @@ A deep dive into `jsi.h` reveals the primary C++ classes and concepts that const
 The `jsi::Runtime` class is the central nervous system of the JSI. It represents an instance of a JavaScript VM and is the primary entry point for all JSI operations.
 
 ```cpp
-// Key Runtime operations
-class Runtime {
+// Key Runtime / IRuntime operations (selected; see jsi.h:332-685 for the full set).
+// All of these are pure virtual on IRuntime; engine implementations (Hermes,
+// JSC) override them.
+class IRuntime /* : public ICast */ {
 public:
-  // Execute JavaScript code
-  Value evaluateJavaScript(const std::shared_ptr<const Buffer>& buffer, 
-                          const std::string& sourceURL);
-  
-  // Access global object
-  Object global();
-  
-  // Create new values
-  Value createValueFromJsonUtf8(const uint8_t* json, size_t length);
-  
-  // Clone values (deep copy)
-  Value cloneValue(const Value& value);
-  
-  // Check value types
-  bool isArray(const Object&) const;
-  bool isFunction(const Object&) const;
-  
+  // Execute JavaScript code.
+  virtual Value evaluateJavaScript(const std::shared_ptr<const Buffer>& buffer,
+                                   const std::string& sourceURL) = 0;
+
+  // Access the global object.
+  virtual Object global() = 0;
+
+  // Parse a UTF-8 JSON document into a Value (default impl uses JSON.parse).
+  virtual Value createValueFromJsonUtf8(const uint8_t* json, size_t length) = 0;
+
+  // Type checks on Objects.
+  virtual bool isArray(const Object&) const = 0;
+  virtual bool isFunction(const Object&) const = 0;
+
+  // Microtask integration (per ECMA-262 Job queue).
+  virtual void queueMicrotask(const jsi::Function& callback) = 0;
+  virtual bool drainMicrotasks(int maxMicrotasksHint = -1) = 0;
+
   // ... many more operations
 };
+
+// To copy a Value across runtime calls, use the Value's two-arg constructor.
+// There is no `cloneValue` method on Runtime; the engine-internal clone
+// helpers (cloneSymbol, cloneString, cloneObject, ...) are per-PointerValue
+// and not part of the user-facing surface. Cloning a Value:
+jsi::Value copy(rt, original); // calls Value(IRuntime&, const Value&)
 ```
 
 **Practical Example - Evaluating JavaScript:**
@@ -162,18 +207,24 @@ void executeScript(jsi::Runtime& rt) {
 The `jsi::HostObject` is the most powerful feature of the JSI. It allows you to expose a C++ object to the JavaScript world as if it were a regular JavaScript object.
 
 ```cpp
-// Complete HostObject interface
+// Complete HostObject interface (jsi.h:222-251).
 class JSI_EXPORT HostObject {
 public:
   virtual ~HostObject();
-  
+
   // Called when JS accesses a property: obj.prop
+  // Default impl returns Value::undefined() (jsi.cpp:276-278).
   virtual Value get(Runtime& rt, const PropNameID& name);
-  
+
   // Called when JS sets a property: obj.prop = value
+  // IMPORTANT: the default impl THROWS a TypeError-shaped JSError
+  // ("Cannot assign to property '<name>' on HostObject with default setter",
+  // jsi.cpp:280-285). If you want writes to silently no-op you must override
+  // and do nothing; the default does NOT no-op.
   virtual void set(Runtime& rt, const PropNameID& name, const Value& value);
-  
-  // Return all available properties
+
+  // Return all available properties.
+  // Default impl returns an empty vector (jsi.cpp:954+).
   virtual std::vector<PropNameID> getPropertyNames(Runtime& rt);
 };
 ```
@@ -466,16 +517,19 @@ public:
   }
   
   jsi::Value get(jsi::Runtime& rt, const jsi::PropNameID& name) override {
-    // Fast comparison using interned IDs
-    if (name.compare(rt, propNames_->width) == 0) {
+    // Fast comparison using interned IDs.
+    // NOTE: `PropNameID::compare` is a STATIC member (jsi.h:950) and returns
+    // bool (true when equal), not an int. The correct call form is
+    // `PropNameID::compare(rt, a, b)`, not `a.compare(rt, b)`.
+    if (jsi::PropNameID::compare(rt, name, propNames_->width)) {
       return jsi::Value(1920);
-    } else if (name.compare(rt, propNames_->height) == 0) {
+    } else if (jsi::PropNameID::compare(rt, name, propNames_->height)) {
       return jsi::Value(1080);
-    } else if (name.compare(rt, propNames_->data) == 0) {
+    } else if (jsi::PropNameID::compare(rt, name, propNames_->data)) {
       // Return large data without serialization
       return getLargeDataArray(rt);
     }
-    
+
     return jsi::Value::undefined();
   }
 };
@@ -551,23 +605,32 @@ public:
     if (propName == "read") {
       return jsi::Function::createFromHostFunction(rt,
         jsi::PropNameID::forAscii(rt, "read"), 1,
-        [this](jsi::Runtime& rt, const jsi::Value&, 
+        [this](jsi::Runtime& rt, const jsi::Value&,
                const jsi::Value* args, size_t) -> jsi::Value {
           size_t bytes = args[0].asNumber();
           auto data = stream_->read(bytes);
-          
+
           if (data.empty()) {
             return jsi::Value::null();
           }
-          
-          // Return typed array for efficient binary data
-          auto arrayBuffer = jsi::ArrayBuffer(rt, data.size());
-          memcpy(arrayBuffer.data(rt), data.data(), data.size());
-          
-          auto uint8Array = jsi::Object::createFromHostObject(
-            rt, std::make_shared<TypedArrayHostObject>(arrayBuffer));
-          
-          return uint8Array;
+
+          // NOTE: jsi::ArrayBuffer's only public constructor takes a
+          // std::shared_ptr<MutableBuffer> (jsi.h:1556). There is no
+          // `ArrayBuffer(rt, size_t)`. To hand JS a writable byte buffer of a
+          // chosen size, wrap your bytes in a MutableBuffer subclass:
+          struct VectorBuffer : jsi::MutableBuffer {
+            std::vector<uint8_t> bytes;
+            explicit VectorBuffer(std::vector<uint8_t> b) : bytes(std::move(b)) {}
+            size_t size() const override { return bytes.size(); }
+            uint8_t* data() override { return bytes.data(); }
+          };
+
+          auto buffer = jsi::ArrayBuffer(rt,
+            std::make_shared<VectorBuffer>(std::move(data)));
+
+          // For a Uint8Array view over the buffer, use the JSI factory
+          // (jsi.h:655-659): `runtime.createUint8Array(buffer, 0, size)`.
+          return jsi::Uint8Array(rt, buffer, 0, buffer.size(rt));
         });
     }
     
@@ -610,8 +673,12 @@ public:
     }
     
     if (propName == "emit") {
+      // paramCount is `unsigned int` (jsi.h:1611); engines don't enforce it as
+      // an upper bound on call-site argument count, it only seeds the JS
+      // function's `length` property. Pass 0 when the function accepts
+      // arbitrarily many args.
       return jsi::Function::createFromHostFunction(rt,
-        jsi::PropNameID::forAscii(rt, "emit"), -1, // Variable args
+        jsi::PropNameID::forAscii(rt, "emit"), 0, // variable args
         [this](jsi::Runtime& rt, const jsi::Value&,
                const jsi::Value* args, size_t count) -> jsi::Value {
           if (count < 1) return jsi::Value::undefined();
@@ -634,14 +701,20 @@ public:
     return jsi::Value::undefined();
   }
   
-  // Call from native code
-  void emitFromNative(jsi::Runtime& rt, const std::string& event, 
+  // Call from native code.
+  // NOTE: `Function::call(rt, Value*, size_t)` exists as a non-template
+  // overload (jsi.h:1620), but the variadic template overload (jsi.h:1639)
+  // wins overload resolution when `args` is a mutable `std::vector<Value>`
+  // because `Value*` is a tighter match for `Args&&...` than the qualification
+  // conversion to `const Value*`. Real RN code casts to `const jsi::Value*`
+  // explicitly (see `RCTTurboModule.mm:163` and `TimerManager.h:37`).
+  void emitFromNative(jsi::Runtime& rt, const std::string& event,
                       std::vector<jsi::Value> args) {
     std::lock_guard<std::mutex> lock(listenersMutex_);
     auto it = listeners_.find(event);
     if (it != listeners_.end()) {
       for (auto& listener : it->second) {
-        listener.call(rt, args.data(), args.size());
+        listener.call(rt, (const jsi::Value*)args.data(), args.size());
       }
     }
   }
@@ -689,14 +762,26 @@ public:
                const jsi::Value* args, size_t) -> jsi::Value {
           size_t start = args[0].asNumber();
           size_t end = args[1].asNumber();
-          
+
           if (start >= file_->size() || end > file_->size() || start > end) {
             throw jsi::JSError(rt, "Invalid slice range");
           }
-          
-          // Create ArrayBuffer view without copying
-          auto buffer = jsi::ArrayBuffer(rt, file_->data() + start, end - start);
-          return buffer;
+
+          // To expose an in-memory pointer + length to JS without copying, you
+          // implement a MutableBuffer that points at your existing storage and
+          // hand it to the ArrayBuffer constructor (jsi.h:1556).
+          // jsi::ArrayBuffer(rt, void*, size_t) is NOT a real constructor.
+          struct WindowBuffer : jsi::MutableBuffer {
+            uint8_t* ptr;
+            size_t len;
+            WindowBuffer(uint8_t* p, size_t l) : ptr(p), len(l) {}
+            size_t size() const override { return len; }
+            uint8_t* data() override { return ptr; }
+          };
+
+          return jsi::ArrayBuffer(rt,
+            std::make_shared<WindowBuffer>(
+              const_cast<uint8_t*>(file_->data() + start), end - start));
         });
     }
     
@@ -829,4 +914,16 @@ public:
 
 **Citations:**
 
-[1] `packages/react-native/ReactCommon/jsi/jsi/jsi.h`
+[^1]: `packages/react-native/ReactCommon/jsi/jsi/jsi.h` (HEAD `7f8c75f2f7b`, upstream `b32a6c9e9db`, v0.86.0-rc.1 era). The full IRuntime / Runtime interface lives at lines 332-822; HostObject at 222-251; HostFunctionType at 217-218; Value at 1763-2078.
+
+[^2]: React Native 0.76.0 release blog, "New Architecture by default" (2024-10-23): https://reactnative.dev/blog/2024/10/23/release-0.76-new-architecture. CHANGELOG entry for v0.76 in `CHANGELOG-0.7x.md`. JSI itself shipped much earlier (experimental in 0.59, default on the Hermes path long before 0.76). What 0.76 turned on by default was the Fabric + TurboModules + Bridgeless stack built on JSI.
+
+[^3]: `IRuntime` is the abstract interface (jsi.h:332-685); `Runtime : public IRuntime` keeps the older surface alive for backward compatibility (jsi.h:705-822). The header docs at 332-337 explicitly state "for backward compatibility, these APIs are also accessible via the Runtime object directly".
+
+[^4]: `HostObject::set` default implementation: `packages/react-native/ReactCommon/jsi/jsi/jsi.cpp:280-285`. It throws `JSError(rt, "TypeError: Cannot assign to property '<name>' on HostObject with default setter")`. Confirmed by the `NopHostObject` test in `packages/react-native/ReactCommon/jsi/jsi/test/testlib.cpp:440-454`.
+
+[^5]: `PropNameID::compare` declaration: `packages/react-native/ReactCommon/jsi/jsi/jsi.h:950-955` (`static bool compare(IRuntime&, const PropNameID&, const PropNameID&)`). Real usage in `packages/react-native/ReactCommon/jsi/jsi/test/testlib.cpp:350-354`.
+
+[^6]: `ArrayBuffer` constructor: `packages/react-native/ReactCommon/jsi/jsi/jsi.h:1556` (`ArrayBuffer(IRuntime&, std::shared_ptr<MutableBuffer>)`). `MutableBuffer` interface at `packages/react-native/ReactCommon/jsi/jsi/jsi.h:167-172`.
+
+[^7]: Vision Camera's `FrameHostObject` inheriting from `jsi::HostObject`: https://github.com/mrousavy/react-native-vision-camera/commit/4584d33 (line 28: `class JSI_EXPORT FrameHostObject : public jsi::HostObject`). Vision Camera's own docs on frame buffer sizes: https://react-native-vision-camera.com/docs/guides/frame-processors-tips (cites ~12 MB per 4K YUV frame; the 30 MB figure here is the RGBA8 worst case for the same resolution).

@@ -1,3 +1,37 @@
+---
+title: "Fabric - The New Renderer"
+chapter: "02"
+created_at: "2025-09-22T15:30:19-04:00"
+updated_at: "2026-05-23T16:17:21-0400"
+session_id: "audit-worker-02-fabric"
+host_info:
+  hostname: "macbookpro.home.arpa"
+  user: "gaston"
+  os: "macOS 26.5"
+  kernel: "25.5.0"
+  arch: "arm64"
+rn_version_origin:
+  version: "0.81.4"
+  tag: "v0.81.4"
+  date: "2025-09-10"
+  note: "Closest stable release at the chapter's original bootstrap date (2025-09-22)."
+rn_version_current:
+  version: "0.86.0-rc.1+main"
+  tag: "v0.86.0-rc.1"
+  commit: "b32a6c9e9db2284547183e2d48ffa0a45a73fbc6"
+  date: "2026-05-22"
+  note: "Upstream RN main HEAD as of the audit. Past v0.86.0-rc.1 by ~30 commits."
+tags: [react-native, new-architecture, fabric, renderer, shadow-tree, yoga, mounting]
+audit:
+  status: "verified"
+  baseline_branch: "audit/baseline-2026-05-23"
+  verified_branch: "audit/verified-2026-05-23"
+  report: "_verification/chapters/02-fabric/report.md"
+taillog:
+  - "2025-09-22T15:30:19-04:00 | Initial draft (RN 0.81.4 era)"
+  - "2026-05-23T16:17:21-0400 | Source-grounded audit pass against RN 0.86 (commit b32a6c9e9db). See _verification/chapters/02-fabric/report.md."
+---
+
 # Chapter 3: Fabric - The New Renderer
 
 Fabric is the name of React Native's modern rendering system, a complete re-implementation of the UI manager that lies at the heart of the New Architecture. Built on top of the JSI, Fabric delivers a more performant, responsive, and interoperable UI layer. It replaces the legacy "UIManager" and fundamentally changes how React Native translates JavaScript component trees into native platform views.
@@ -18,12 +52,11 @@ Fabric was designed to solve these issues by creating a more tightly integrated 
 
 ```mermaid
 flowchart LR
-  React[React Reconciler] -->|produces| ShadowTree[Fabric Shadow Tree (C++)]
+  React[React Reconciler] -->|produces| ShadowTree["Fabric Shadow Tree<br/>(C++, immutable)"]
   ShadowTree --> Layout[Yoga Layout]
   Layout --> Mounting[Mounting Layer]
-  Mounting --> PlatformViews[Native Views\n(UIView / Android View)]
-  React <-->|events| PlatformViews
-  note right of ShadowTree: Immutable nodes, concurrent-safe
+  Mounting --> PlatformViews["Native Views<br/>(UIView / Android View)"]
+  PlatformViews -->|events| React
 ```
 
 ## The C++ Core of Fabric
@@ -48,262 +81,332 @@ ShadowTree (Root)
 
 ### 1. `ShadowNode`: The Immutable Building Block
 
-The fundamental unit of the Shadow Tree is the `ShadowNode`. As defined in `packages/react-native/ReactCommon/react/renderer/core/ShadowNode.h` [1], it is the C++ representation of a React element.
+The fundamental unit of the Shadow Tree is the `ShadowNode`. As defined in `packages/react-native/ReactCommon/react/renderer/core/ShadowNode.h` [^1], it is the C++ representation of a React element.
 
 ```cpp
-// Key aspects of ShadowNode design
-class ShadowNode {
-public:
-  // Immutable design - all data is const after construction
-  using Shared = std::shared_ptr<const ShadowNode>;
-  
-  // Core data (all immutable)
-  const ShadowNodeFragment fragment_;
-  const ShadowNodeFamily::Shared family_;
-  const State::Shared state_;
-  
-  // Layout results (calculated by Yoga)
-  LayoutMetrics layoutMetrics_;
-  
-  // Revision tracking for efficient updates
-  int32_t revision_;
+// Abridged from ShadowNode.h. See the full file for the complete API.
+class ShadowNode : public Sealable,
+                   public DebugStringConvertible,
+                   public jsi::NativeState {
+ public:
+  // Constructors. Copy ctor and copy-assign are deleted: ShadowNode is
+  // non-copyable. Updates go through `clone()`.
+  ShadowNode(const ShadowNodeFragment &fragment,
+             ShadowNodeFamily::Shared family,
+             ShadowNodeTraits traits);
+  ShadowNode(const ShadowNode &sourceShadowNode,
+             const ShadowNodeFragment &fragment);
+
+  // The canonical update API: returns a new node with the given fields
+  // patched. Children/state/props that are not specified are carried over.
+  std::shared_ptr<ShadowNode> clone(const ShadowNodeFragment &fragment) const;
+
+ protected:
+  Props::Shared props_;
+  std::shared_ptr<const std::vector<std::shared_ptr<const ShadowNode>>> children_;
+  State::Shared state_;
+  int orderIndex_;
+
+ private:
+  ShadowNodeFamily::Shared family_;
+  mutable std::atomic<bool> hasBeenMounted_{false};
 };
 ```
+
+Notes on the layout:
+
+- `ShadowNode` inherits from `Sealable`. After commit, `sealRecursive()` is called so a node can no longer be mutated even by the C++ side (this is a no-op in release builds; the guard fires in debug).
+- It inherits from `jsi::NativeState`, which is how a JS `ShadowNode` reference holds a C++ pointer.
+- Layout metrics do not live on `ShadowNode`. They live on the `LayoutableShadowNode` subclass (`packages/react-native/ReactCommon/react/renderer/core/LayoutableShadowNode.h` [^5]). Any concrete view component descends through that branch.
+- The `Shared` type alias pattern (`std::shared_ptr<const T>`) is defined on `RootShadowNode`, `Props`, `State`, `ShadowNodeFamily`, and other types in the renderer, but not on `ShadowNode` itself; pass `std::shared_ptr<const ShadowNode>` explicitly when you need it.
 
 **Why Immutability Matters:**
 
-```cpp
-// Old Architecture - Mutable UI updates (problematic)
-view.backgroundColor = "red";  // Direct mutation
-view.frame = newFrame;         // Another mutation
-// Result: Unpredictable state, race conditions
+In the legacy renderer, the JS thread and the UI thread could see the same view in inconsistent states because mutations happened across threads against a single set of native view objects. Fabric flips this: every "change" is the production of a new immutable node, and the old tree is still valid until the commit swap completes. Two threads that hold pointers to different revisions cannot trample each other.
 
-// Fabric - Immutable updates (safe & predictable)
-auto oldNode = getShadowNode();
-auto newNode = oldNode->clone({
-  .props = std::make_shared<ViewProps>(*oldProps, [](auto& props) {
-    props.backgroundColor = Color::Red();
-  })
-});
-// Original node unchanged, new node created
+Updates are produced by calling `clone()` on the source node with a `ShadowNodeFragment` carrying the changed fields. The actual machinery for changing a prop runs through the matching `ComponentDescriptor`'s `cloneProps`, since the descriptor knows how to parse a `RawProps` into the typed `Props` subclass for that component:
+
+```cpp
+// Excerpt: cloning one node with new props, as it actually happens inside
+// UIManager::cloneNode (UIManager.cpp).
+PropsParserContext propsParserContext{
+    shadowNode.getFamily().getSurfaceId(), *contextContainer_};
+
+auto &componentDescriptor = shadowNode.getComponentDescriptor();
+auto props = componentDescriptor.cloneProps(
+    propsParserContext,
+    shadowNode.getProps(),
+    std::move(rawProps));
+
+auto clonedShadowNode = componentDescriptor.cloneShadowNode(
+    shadowNode,
+    {
+        .props = props,
+        .children = children,
+        .runtimeShadowNodeReference = false,
+    });
 ```
 
-**Real-World Example - Animated Color Change:**
-```cpp
-// Creating a new ShadowNode for a color animation
-auto animateColor = [](const ShadowNode::Shared& node, float progress) {
-  auto oldProps = std::static_pointer_cast<const ViewProps>(node->getProps());
-  
-  // Interpolate color based on progress
-  auto newColor = Color::interpolate(
-    Color::White(), 
-    Color::Blue(), 
-    progress
-  );
-  
-  // Create new props with updated color
-  auto newProps = std::make_shared<ViewProps>(*oldProps, [&](auto& props) {
-    props.backgroundColor = newColor;
-  });
-  
-  // Clone node with new props
-  return node->clone({
-    .props = newProps
-  });
-};
-```
+The originating `shadowNode` is unchanged. The clone shares structure with its parent's children vector until that too is cloned by the next ancestor up the path. This structural sharing is why a "single prop changed" mutation is cheap even on a thousand-node tree.
 
 ### Deep Dive: Props System
 
-The Props system in Fabric is type-safe and efficient:
+The Props system in Fabric is type-safe and per-component. The base `Props` class is small and stateless on its own; the real shape comes from the inheritance chain for each component.
 
 ```cpp
-// Base Props class
-class Props {
-public:
-  // Revision for change detection
-  int32_t revision;
-  
-  // Source of props (JS, native, or default)
-  PropsSource source;
-  
-  // Raw props from JavaScript
-  RawProps rawProps;
-};
+// Props.h (abridged). The base class is intentionally lean.
+class Props : public virtual Sealable,
+              public virtual DebugStringConvertible {
+ public:
+  using Shared = std::shared_ptr<const Props>;
 
-// Concrete example - ViewProps
-class ViewProps : public Props {
-public:
-  // Typed properties
-  Float opacity{1.0};
-  Color backgroundColor{};
-  Transform transform{};
-  
-  // Efficient parsing from JS
-  ViewProps(const ViewProps& sourceProps, const RawProps& rawProps) {
-    // Only parse changed properties
-    if (rawProps.hasProperty("opacity")) {
-      opacity = rawProps.getFloat("opacity");
-    }
-    if (rawProps.hasProperty("backgroundColor")) {
-      backgroundColor = Color::parse(rawProps.getString("backgroundColor"));
-    }
-  }
+  Props() = default;
+  Props(const PropsParserContext &context,
+        const Props &sourceProps,
+        const RawProps &rawProps,
+        const std::function<bool(const std::string &)> &filterObjectKeys = nullptr);
+
+  // Called by the prop parser, once per property, while walking RawProps.
+  // Subclasses override this and dispatch on `hash` to set their fields.
+  void setProp(const PropsParserContext &context,
+               RawPropsPropNameHash hash,
+               const char *propName,
+               const RawValue &value);
+
+  std::string nativeId;
 };
 ```
+
+There is no `revision`, no `source`, no `rawProps` member on the base `Props`. Parsing happens through `RawPropsParser` walking the JS values and dispatching per-property hashes to the matching `setProp` overload. This is how Fabric avoids the per-update JSON allocations that the legacy renderer paid.
+
+`ViewProps` is a `using` alias for `HostPlatformViewProps`, which on most platforms aliases `BaseViewProps`. The inheritance graph is `BaseViewProps : public YogaStylableProps, public AccessibilityProps`, and `YogaStylableProps` is what eventually inherits from `Props`. The flattened field set on `BaseViewProps` looks like this:
+
+```cpp
+// BaseViewProps.h (abridged). See the full file for the complete list.
+class BaseViewProps : public YogaStylableProps, public AccessibilityProps {
+ public:
+  BaseViewProps() = default;
+  BaseViewProps(
+      const PropsParserContext &context,
+      const BaseViewProps &sourceProps,
+      const RawProps &rawProps,
+      const std::function<bool(const std::string &)> &filterObjectKeys = nullptr);
+
+  Float opacity{1.0};
+  SharedColor backgroundColor{};  // wrapper around Color; pointer-like
+  CascadedBorderRadii borderRadii{};
+  CascadedBorderColors borderColors{};
+  Transform transform{};
+  TransformOrigin transformOrigin{};
+  BackfaceVisibility backfaceVisibility{};
+  bool shouldRasterize{};
+  std::optional<int> zIndex{};
+  PointerEventsMode pointerEvents{};
+  // ...and many more
+};
+```
+
+`backgroundColor` is a `SharedColor` (a thin wrapper that hides the platform color representation), not a bare `Color`, which is why iOS code converts it via `RCTUIColorFromSharedColor(...)` and Android extracts a 32-bit int.
 
 ### State Management in Fabric
 
-Unlike props, state can be updated from both JavaScript and native:
+Unlike props, state can be updated from both JavaScript and native. The pattern is one `State` template parameterised by a per-component `StateData` POD. For `ScrollView` the data type is `ScrollViewState`:
 
 ```cpp
-// Example: ScrollView state
-class ScrollViewState {
-public:
-  // Content offset managed by native gesture
-  Point contentOffset{0, 0};
-  
-  // Content size calculated during layout
-  Size contentSize{0, 0};
-  
-  // Update from native (e.g., user scrolling)
-  void updateContentOffset(Point newOffset) {
-    contentOffset = newOffset;
-    // Notify JavaScript of state change
-    commitStateUpdate();
-  }
+// ScrollViewState.h (abridged)
+class ScrollViewState final {
+ public:
+  ScrollViewState(Point contentOffset,
+                  Rect contentBoundingRect,
+                  int scrollAwayPaddingTop);
+  ScrollViewState() = default;
+
+  Point contentOffset;
+  Rect contentBoundingRect;
+  int scrollAwayPaddingTop{0};
+  bool disableViewCulling{false};
+
+  Size getContentSize() const;
 };
 ```
+
+The content size is derived from `contentBoundingRect`, not stored directly. State writes go through `State::updateState(stateData)`, which schedules a commit on the shadow tree. The platform code that runs scrolling calls into this on each frame to keep the JS-visible content offset in sync, without making a JS roundtrip per scroll tick.
 
 ### 2. `ComponentDescriptor`: The Shadow Node Factory
 
-Defined in `packages/react-native/ReactCommon/react/renderer/core/ComponentDescriptor.h` [2], a `ComponentDescriptor` is a factory object responsible for creating and managing `ShadowNode` instances of a specific type.
+Defined in `packages/react-native/ReactCommon/react/renderer/core/ComponentDescriptor.h` [^2], a `ComponentDescriptor` is a factory object responsible for creating and managing `ShadowNode` instances of a specific type.
 
 ```cpp
-// Complete ComponentDescriptor interface
+// ComponentDescriptor.h (abridged). Pure-virtual methods only.
 class ComponentDescriptor {
-public:
-  // Factory methods
+ public:
+  using Shared = std::shared_ptr<const ComponentDescriptor>;
+  using Unique = std::unique_ptr<const ComponentDescriptor>;
+
+  virtual ComponentHandle getComponentHandle() const = 0;
+  virtual ComponentName getComponentName() const = 0;
+  virtual ShadowNodeTraits getTraits() const = 0;
+
   virtual std::shared_ptr<ShadowNode> createShadowNode(
-      const ShadowNodeFragment& fragment,
-      const ShadowNodeFamily::Shared& family) const = 0;
+      const ShadowNodeFragment &fragment,
+      const ShadowNodeFamily::Shared &family) const = 0;
 
   virtual std::shared_ptr<ShadowNode> cloneShadowNode(
-      const ShadowNode& sourceShadowNode,
-      const ShadowNodeFragment& fragment) const = 0;
-  
-  // Props handling
+      const ShadowNode &sourceShadowNode,
+      const ShadowNodeFragment &fragment) const = 0;
+
+  virtual void appendChild(
+      const std::shared_ptr<const ShadowNode> &parentShadowNode,
+      const std::shared_ptr<const ShadowNode> &childShadowNode) const = 0;
+
+  // Note: cloneProps takes three arguments. The PropsParserContext is required.
+  // RawProps is taken by value because it gets moved through the parser.
   virtual Props::Shared cloneProps(
-      const Props::Shared& props,
-      const RawProps& rawProps) const = 0;
-  
-  // Event emitter creation
-  virtual EventEmitter::Shared createEventEmitter(
-      const ShadowNode::Shared& shadowNode,
-      const EventDispatcher::Shared& eventDispatcher) const = 0;
+      const PropsParserContext &context,
+      const Props::Shared &props,
+      RawProps rawProps) const = 0;
+
+  virtual State::Shared createInitialState(
+      const Props::Shared &props,
+      const ShadowNodeFamily::Shared &family) const = 0;
+  virtual State::Shared createState(
+      const ShadowNodeFamily &family,
+      const StateData::Shared &data) const = 0;
+
+  virtual ShadowNodeFamily::Shared createFamily(
+      const ShadowNodeFamilyFragment &fragment) const = 0;
 };
 ```
 
-**Real Implementation Example - ViewComponentDescriptor:**
+There is no `createEventEmitter` on `ComponentDescriptor`. Event emitters are produced inside `ShadowNodeFamily::createEventEmitter()` (via the family that the descriptor returns from `createFamily(...)`) and passed through `ShadowNodeFragment`. The chapter-1 mental model of "descriptor builds emitter" is close, but the real factory method lives on the family, not the descriptor.
+
+**Real Implementation - ViewComponentDescriptor:**
+
+`ViewComponentDescriptor` is intentionally empty: it just plugs `ViewShadowNode` into the generic `ConcreteComponentDescriptor` template, which provides all the virtual overrides.
+
 ```cpp
-class ViewComponentDescriptor : public ComponentDescriptor {
-public:
+// packages/react-native/ReactCommon/react/renderer/components/view/ViewComponentDescriptor.h
+class ViewComponentDescriptor
+    : public ConcreteComponentDescriptor<ViewShadowNode> {
+ public:
+  ViewComponentDescriptor(const ComponentDescriptorParameters &parameters)
+      : ConcreteComponentDescriptor<ViewShadowNode>(parameters) {}
+};
+```
+
+The actual factory work is in `ConcreteComponentDescriptor<T>` [^6]:
+
+```cpp
+// ConcreteComponentDescriptor.h (abridged)
+template <typename ShadowNodeT>
+class ConcreteComponentDescriptor : public ComponentDescriptor {
+ public:
   ComponentHandle getComponentHandle() const override {
-    return ViewComponentName; // "RCTView"
+    return ShadowNodeT::Handle();
   }
-  
+  ComponentName getComponentName() const override {
+    return ShadowNodeT::Name();  // for View: the string "View", not "RCTView"
+  }
+
   std::shared_ptr<ShadowNode> createShadowNode(
-      const ShadowNodeFragment& fragment,
-      const ShadowNodeFamily::Shared& family) const override {
-    // Create props from raw JS values
-    auto props = std::make_shared<ViewProps>(fragment.props);
-    
-    // Create the shadow node
-    return std::make_shared<ViewShadowNode>(
-      fragment,
-      family,
-      props
-    );
+      const ShadowNodeFragment &fragment,
+      const ShadowNodeFamily::Shared &family) const override {
+    auto shadowNode = std::make_shared<ShadowNodeT>(fragment, family, getTraits());
+    adopt(*shadowNode);
+    return shadowNode;
   }
-  
-  // Specialized clone for performance
+
   std::shared_ptr<ShadowNode> cloneShadowNode(
-      const ShadowNode& source,
-      const ShadowNodeFragment& fragment) const override {
-    // Efficient cloning with minimal allocations
-    return std::make_shared<ViewShadowNode>(
-      source,
-      fragment
-    );
+      const ShadowNode &sourceShadowNode,
+      const ShadowNodeFragment &fragment) const override {
+    auto shadowNode = std::make_shared<ShadowNodeT>(sourceShadowNode, fragment);
+    shadowNode->completeClone(sourceShadowNode, fragment);
+    sourceShadowNode.transferRuntimeShadowNodeReference(shadowNode, fragment);
+    adopt(*shadowNode);
+    return shadowNode;
   }
 };
 ```
+
+`adopt(...)` is the hook a descriptor uses to inject context that the shadow node cannot construct itself (the `ImageComponentDescriptor` uses it to hand the image manager to each `ImageShadowNode`, for example).
 
 ### 3. `ShadowTree`: Managing UI Evolution
 
-As seen in `packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.h` [3], this class manages the entire lifecycle of the UI tree.
+As seen in `packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.h` [^3], this class manages the entire lifecycle of the UI tree.
 
 ```cpp
-class ShadowTree {
-private:
-  // Current committed tree
-  ShadowTreeRevision::Shared currentRevision_;
-  
-  // Lock-free commit algorithm
-  std::atomic<bool> commitLock_{false};
-  
-public:
-  // Core commit operation
-  bool tryCommit(
-    const ShadowTreeCommitTransaction& transaction,
-    const CommitOptions& options = {}) {
-    
-    // 1. Create new tree by applying transaction
-    auto newRootNode = transaction(currentRevision_->rootShadowNode);
-    
-    // 2. Calculate layout with Yoga
-    newRootNode->layoutTree(layoutContext);
-    
-    // 3. Create new revision
-    auto newRevision = std::make_shared<ShadowTreeRevision>(
-      newRootNode,
-      currentRevision_->number + 1
-    );
-    
-    // 4. Atomic commit
-    if (commitLock_.exchange(true)) {
-      return false; // Another commit in progress
-    }
-    
-    currentRevision_ = newRevision;
-    commitLock_ = false;
-    
-    // 5. Schedule mounting
-    mountingCoordinator_->scheduleMount(newRevision);
-    
-    return true;
-  }
+// ShadowTree.h (abridged)
+class ShadowTree final {
+ public:
+  using CommitStatus = ShadowTreeCommitStatus;  // Succeeded, Failed, Cancelled
+  using CommitMode = ShadowTreeCommitMode;
+  using CommitOptions = ShadowTreeCommitOptions;
+
+  // Returns Succeeded, Failed, or Cancelled. NOT a bool.
+  CommitStatus tryCommit(const ShadowTreeCommitTransaction &transaction,
+                         const CommitOptions &commitOptions) const;
+
+  // Calls tryCommit in a loop until it stops returning Failed.
+  CommitStatus commit(const ShadowTreeCommitTransaction &transaction,
+                      const CommitOptions &commitOptions) const;
+
+  ShadowTreeRevision getCurrentRevision() const;
+  std::shared_ptr<const MountingCoordinator> getMountingCoordinator() const;
+
+ private:
+  // No lock-free trickery. A shared_mutex protects currentRevision_, with a
+  // recursive_mutex variant behind the preventShadowTreeCommitExhaustion
+  // feature flag for the bounded-attempts fallback.
+  mutable std::shared_mutex revisionMutex_;
+  mutable std::recursive_mutex revisionMutexRecursive_;
+  mutable ShadowTreeRevision currentRevision_;
+  std::shared_ptr<const MountingCoordinator> mountingCoordinator_;
 };
 ```
 
+The actual `tryCommit` implementation (`ShadowTree.cpp:329`) does five things in order:
+
+1. Acquire a *shared* (reader) lock on `revisionMutex_` and snapshot `currentRevision_`.
+2. Invoke the transaction with the old root, producing a new `RootShadowNode::Unshared`.
+3. Optionally reconcile state across the JS branch and main branch via `progressState(...)`.
+4. Run `newRootShadowNode->layoutIfNeeded(&affectedLayoutableNodes)`. This is the layout pass; it only re-runs Yoga on subtrees whose layout-affecting state changed.
+5. Acquire a *unique* (writer) lock. If `currentRevision_.number` has moved under us, return `CommitStatus::Failed` and let the caller retry. Otherwise, increment the revision, seal the tree, and either push the revision to the `MountingCoordinator` (synchronous mode) or store it as a pending React revision (concurrent mode).
+
+The "lock-free atomic bool" was a simplification in earlier drafts; the real machinery is a conventional reader/writer mutex with retry-on-conflict, plus a bounded-attempt fall-back to an exclusive lock to prevent unbounded retries.
+
 **Commit Transaction Example:**
+
+A commit transaction is a function from "old root" to "new root". To change a single button's background color, you'd use `ShadowNode::cloneTree`, which walks from a target node up to the root and clones each ancestor's children vector to splice in the updated node:
+
 ```cpp
-// Updating a button's color when pressed
-shadowTree.tryCommit([&](const RootShadowNode::Shared& root) {
-  // Find the button node
-  auto buttonNode = findNodeByTag(root, buttonTag);
-  
-  // Clone with new props
-  auto newButtonNode = buttonNode->clone({
-    .props = std::make_shared<ViewProps>(*buttonNode->getProps(), 
-      [](auto& props) {
-        props.backgroundColor = Color::Blue();
-      })
-  });
-  
-  // Clone parent nodes up to root
-  return cloneTreeWithNewNode(root, buttonNode, newButtonNode);
-});
+// Pseudocode for the JS-driven path. The real driver is React's reconciler
+// calling UIManagerBinding methods; this is what you'd write to do it by hand.
+shadowTree.commit(
+    [&](const RootShadowNode &oldRoot) -> RootShadowNode::Unshared {
+      // Find the family for the button. Family identity (not tag equality)
+      // is the canonical "same node" check in Fabric.
+      const ShadowNodeFamily &buttonFamily = /* ... */;
+
+      auto newRoot = oldRoot.ShadowNode::cloneTree(
+          buttonFamily,
+          [&](const ShadowNode &oldButton) {
+            // The descriptor knows how to translate raw values into the
+            // typed Props subclass for this component.
+            auto newProps = oldButton.getComponentDescriptor().cloneProps(
+                propsParserContext,
+                oldButton.getProps(),
+                RawProps(folly::dynamic::object("backgroundColor", "blue")));
+            return oldButton.clone({.props = newProps});
+          });
+
+      return std::static_pointer_cast<RootShadowNode>(newRoot);
+    },
+    {.enableStateReconciliation = false,
+     .mountSynchronously = true,
+     .source = ShadowTreeCommitSource::Unknown});
+```
+
+The transaction returns the new root or `nullptr` (which becomes `CommitStatus::Cancelled`). Note that the transaction body must return a `RootShadowNode::Unshared` (i.e. `std::shared_ptr<RootShadowNode>`), not a `Shared`, because the new revision needs an owning mutable handle to seal at commit time.
 
 ## The Three Phases of Fabric Rendering
 
@@ -329,239 +432,300 @@ function Counter() {
 
 **What happens under the hood:**
 
+On the C++ side, the JS host call lands in `UIManagerBinding`, which forwards it to `UIManager::createNode` (the class is named `UIManager`, not `FabricUIManager`; the JS-facing module name is `nativeFabricUIManager` and the Java wrapper on Android is `FabricUIManager`). The real signature [^7]:
+
 ```cpp
-// 1. React calls Fabric's renderer via JSI
-void FabricUIManager::createNode(
-    jsi::Runtime& rt,
-    int tag,
-    const jsi::String& componentName,
-    int rootTag,
-    const jsi::Object& props) {
-  
-  // 2. Look up ComponentDescriptor
-  auto componentDescriptor = registry_->getComponentDescriptor(componentName);
-  
-  // 3. Parse props from JavaScript
-  auto rawProps = RawProps(rt, props);
-  
-  // 4. Create ShadowNode
-  auto shadowNode = componentDescriptor->createShadowNode({
-    .tag = tag,
-    .rootTag = rootTag,
-    .props = componentDescriptor->cloneProps(nullptr, rawProps),
-    .eventEmitter = componentDescriptor->createEventEmitter(tag)
-  });
-  
-  // 5. Add to shadow tree (uncommitted)
-  uncommittedTree_->appendChild(parentNode, shadowNode);
+// UIManager.h
+std::shared_ptr<ShadowNode> createNode(
+    Tag tag,
+    const std::string &componentName,
+    SurfaceId surfaceId,
+    RawProps rawProps,
+    InstanceHandle::Shared instanceHandle) const;
+```
+
+```cpp
+// UIManager.cpp createNode (abridged)
+std::shared_ptr<ShadowNode> UIManager::createNode(
+    Tag tag,
+    const std::string &name,
+    SurfaceId surfaceId,
+    RawProps rawProps,
+    InstanceHandle::Shared instanceHandle) const {
+
+  auto &componentDescriptor = componentDescriptorRegistry_->at(name);
+
+  PropsParserContext propsParserContext{surfaceId, *contextContainer_};
+
+  auto family = componentDescriptor.createFamily(
+      {.tag = tag,
+       .surfaceId = surfaceId,
+       .instanceHandle = std::move(instanceHandle)});
+  const auto props = componentDescriptor.cloneProps(
+      propsParserContext, /*sourceProps*/ nullptr, std::move(rawProps));
+  const auto state = componentDescriptor.createInitialState(props, family);
+
+  return componentDescriptor.createShadowNode(
+      ShadowNodeFragment{
+          .props = props,
+          .children = ShadowNodeFragment::childrenPlaceholder(),
+          .state = state,
+      },
+      family);
 }
 ```
 
-**Performance Optimization - Prop Parsing:**
+Notice that `ShadowNodeFragment` carries `props`, `children`, and `state`, not `tag`/`rootTag`/`eventEmitter`. The tag, surface id, and instance handle live on the `ShadowNodeFamily` returned by `createFamily(...)`. The event emitter is built lazily by the family when an event first needs to fire.
+
+**Prop parsing in practice.** Fabric does not iterate `changedProps()` or check a `revision` field on `RawProps`. The parser walks the `RawProps` once via `RawProps::parse(parser)`, hashing each key with `RawPropsPropNameHash` and dispatching into `Props::setProp(context, hash, name, value)` overrides on each subclass. The optimisation is that `ConcreteComponentDescriptor::cloneProps` short-circuits to a shared default-props singleton when both `props` is null and `rawProps` is empty, skipping parsing entirely.
+
 ```cpp
-// Fabric only parses props that actually changed
-class ViewProps {
-  void fromRawProps(const RawProps& rawProps) {
-    // Check revision to skip unchanged props
-    if (rawProps.revision <= lastParsedRevision_) {
-      return;
-    }
-    
-    // Parse only modified properties
-    for (const auto& [key, value] : rawProps.changedProps()) {
-      if (key == "backgroundColor") {
-        backgroundColor = parseColor(value);
-      } else if (key == "opacity") {
-        opacity = value.asDouble();
-      }
-      // ... other props
-    }
-    
-    lastParsedRevision_ = rawProps.revision;
+// From ConcreteComponentDescriptor.h: the "no work to do" short-circuit.
+virtual Props::Shared cloneProps(
+    const PropsParserContext &context,
+    const Props::Shared &props,
+    RawProps rawProps) const override {
+  if (!props && rawProps.isEmpty()) {
+    return ShadowNodeT::defaultSharedProps();
   }
+  rawProps.parse(rawPropsParser_);
+  auto shadowNodeProps = ShadowNodeT::Props(context, rawProps, props);
+  // ...
+  return shadowNodeProps;
+}
+```
+
+### Phase 2: The Commit Phase (on the JS thread)
+
+The commit phase runs on the **JS thread**, not a background thread: it executes synchronously inside the JSI call that React's renderer made into the host. The advantage over the legacy renderer is not that the work moves off the JS thread, but that it stays in C++ end-to-end and uses lock-coordinated reader/writer access instead of a serialized message queue. The mount phase, covered next, is where the work then hops to the platform UI thread.
+
+The diff (`ShadowViewMutation` list) is NOT computed inside `tryCommit`. The diff is deferred: `tryCommit` just lays out, seals, and pushes the new revision into `MountingCoordinator`. When the platform pulls a transaction (synchronously on iOS via `RCTExecuteOnMainQueue`, asynchronously on Android), `MountingCoordinator::pullTransaction` calls `calculateShadowViewMutations(const ShadowNode &oldRootShadowNode, const ShadowNode &newRootShadowNode)` (free function in `mounting/Differentiator.h` [^8]) and packages the result into a `MountingTransaction`.
+
+```cpp
+// ShadowTree.cpp tryCommit (abridged, the load-bearing parts)
+CommitStatus ShadowTree::tryCommit(
+    const ShadowTreeCommitTransaction &transaction,
+    const CommitOptions &commitOptions) const {
+  auto telemetry = TransactionTelemetry{};
+  telemetry.willCommit();
+
+  ShadowTreeRevision oldRevision;
+  {
+    SharedLock lock = sharedRevisionLock();  // reader lock
+    oldRevision = currentRevision_;
+  }
+
+  auto newRootShadowNode = transaction(*oldRevision.rootShadowNode);
+  if (!newRootShadowNode) {
+    return CommitStatus::Cancelled;
+  }
+
+  // Optional state reconciliation.
+  if (commitOptions.enableStateReconciliation) {
+    auto progressed =
+        progressState(*newRootShadowNode, *oldRevision.rootShadowNode);
+    if (progressed) newRootShadowNode = std::static_pointer_cast<RootShadowNode>(progressed);
+  }
+
+  // Layout pass. Yoga runs in here.
+  std::vector<const LayoutableShadowNode *> affectedLayoutableNodes{};
+  newRootShadowNode->layoutIfNeeded(&affectedLayoutableNodes);
+
+  {
+    UniqueLock lock = uniqueRevisionLock();  // writer lock
+    if (currentRevision_.number != oldRevision.number) {
+      return CommitStatus::Failed;  // raced; caller will retry.
+    }
+    auto newRevision = ShadowTreeRevision{
+        .rootShadowNode = std::move(newRootShadowNode),
+        .number = currentRevision_.number + 1,
+        .telemetry = telemetry};
+    newRevision.rootShadowNode->sealRecursive();
+    currentRevision_ = newRevision;
+
+    if (commitMode_ == CommitMode::Normal) {
+      mount(std::move(newRevision), commitOptions.mountSynchronously);
+    }
+  }
+  return CommitStatus::Succeeded;
+}
+```
+
+The `mount()` call goes through `mountingCoordinator_->push(revision)` and then notifies the delegate. The diff is computed lazily by the platform consumer when it pulls.
+
+**Tree Diffing Algorithm:**
+
+The diff produces a `ShadowViewMutation::List`. Five mutation types exist, and they are bitflag-numbered (`Create = 1, Delete = 2, Insert = 4, Remove = 8, Update = 16`). Each mutation carries full `ShadowView` snapshots for the old and new child plus the `parentTag` and `index`:
+
+```cpp
+// ShadowViewMutation.h (abridged)
+struct ShadowViewMutation final {
+  using List = std::vector<ShadowViewMutation>;
+
+  enum Type : std::uint8_t {
+    Create = 1,
+    Delete = 2,
+    Insert = 4,
+    Remove = 8,
+    Update = 16,
+  };
+
+  Type type = {Create};
+  Tag parentTag = -1;
+  ShadowView oldChildShadowView = {};
+  ShadowView newChildShadowView = {};
+  int index = -1;
+
+  static ShadowViewMutation CreateMutation(ShadowView shadowView);
+  static ShadowViewMutation DeleteMutation(ShadowView shadowView);
+  static ShadowViewMutation InsertMutation(
+      Tag parentTag, ShadowView childShadowView, int index);
+  static ShadowViewMutation RemoveMutation(
+      Tag parentTag, ShadowView childShadowView, int index);
+  static ShadowViewMutation UpdateMutation(
+      ShadowView oldChildShadowView,
+      ShadowView newChildShadowView,
+      Tag parentTag);
 };
 ```
 
-### Phase 2: The Commit Phase (C++ Background Thread)
-
-The commit phase is where Fabric's performance advantages really shine:
-
-```cpp
-void ShadowTree::commit(const CommitTransaction& transaction) {
-  // 1. Apply the transaction to create new tree
-  auto newRoot = transaction(currentRevision_->rootNode);
-  
-  // 2. Perform tree diffing
-  auto mutations = calculateMutations(
-    currentRevision_->rootNode,
-    newRoot
-  );
-  
-  // 3. Layout calculation with Yoga
-  performLayout(newRoot);
-  
-  // 4. Create new revision
-  auto newRevision = std::make_shared<ShadowTreeRevision>(
-    newRoot,
-    mutations,
-    currentRevision_->number + 1
-  );
-  
-  // 5. Atomic pointer swap
-  currentRevision_ = newRevision;
-  
-  // 6. Schedule mount on UI thread
-  mountingCoordinator_->scheduleMount(mutations);
-}
-```
-
-**Tree Diffing Algorithm:**
-```cpp
-std::vector<Mutation> calculateMutations(
-    const ShadowNode::Shared& oldRoot,
-    const ShadowNode::Shared& newRoot) {
-  
-  std::vector<Mutation> mutations;
-  
-  // Recursive diff algorithm
-  diffNodes(oldRoot, newRoot, mutations);
-  
-  return mutations;
-}
-
-void diffNodes(
-    const ShadowNode::Shared& oldNode,
-    const ShadowNode::Shared& newNode,
-    std::vector<Mutation>& mutations) {
-  
-  // Same node, check for updates
-  if (oldNode->getTag() == newNode->getTag()) {
-    // Props changed?
-    if (oldNode->getProps() != newNode->getProps()) {
-      mutations.push_back({
-        .type = Mutation::Type::Update,
-        .tag = newNode->getTag(),
-        .newProps = newNode->getProps()
-      });
-    }
-    
-    // Recursively diff children
-    diffChildren(oldNode->getChildren(), newNode->getChildren(), mutations);
-    
-  } else {
-    // Different nodes - replace
-    mutations.push_back({
-      .type = Mutation::Type::Remove,
-      .tag = oldNode->getTag()
-    });
-    mutations.push_back({
-      .type = Mutation::Type::Insert,
-      .tag = newNode->getTag(),
-      .parentTag = newNode->getParent()->getTag()
-    });
-  }
-}
-```
+`ShadowView` is the "snapshot" type: `tag`, `props`, `eventEmitter`, `state`, `layoutMetrics`. It is small and value-copyable, which is what lets the mutation list cross the JS-thread / UI-thread boundary safely. The actual diff walk lives in `mounting/Differentiator.cpp`. Identity is established via `ShadowNode::sameFamily(...)` (same family object = "same component instance across renders"), not just tag equality, so React's family-based reconciliation maps directly to mounting decisions.
 
 **Layout Calculation with Yoga:**
+
+Yoga is not invoked through a one-shot `YGNodeCalculateLayout` call per commit with a freshly constructed `YGConfig`. Each `YogaLayoutableShadowNode` *owns* its `yoga::Node` as a member (`yogaNode_`). The node is built when the shadow node is constructed and is destroyed with it; there is no `YGNodeFree`/`YGConfigFree` paired with each layout call. The root's `layoutTree()` does one `YGNodeCalculateLayout` on the embedded root yoga node:
+
 ```cpp
-void performLayout(const ShadowNode::Shared& root) {
-  // Yoga configuration
-  YGConfigRef yogaConfig = YGConfigNew();
-  YGConfigSetPointScaleFactor(yogaConfig, screenScale_);
-  
-  // Convert shadow tree to Yoga tree
-  auto yogaNode = createYogaTree(root);
-  
-  // Calculate layout
-  YGNodeCalculateLayout(
-    yogaNode,
-    screenSize_.width,
-    screenSize_.height,
-    YGDirectionLTR
-  );
-  
-  // Apply layout results back to shadow nodes
-  applyLayoutResults(root, yogaNode);
-  
-  YGNodeFree(yogaNode);
-  YGConfigFree(yogaConfig);
+// YogaLayoutableShadowNode.cpp (abridged)
+void YogaLayoutableShadowNode::layoutTree(
+    LayoutContext layoutContext, LayoutConstraints layoutConstraints) {
+  // Push min/max into Yoga style on the root.
+  auto &yogaStyle = yogaNode_.style();
+  auto ownerWidth = yogaFloatFromFloat(layoutConstraints.maximumSize.width);
+  auto ownerHeight = yogaFloatFromFloat(layoutConstraints.maximumSize.height);
+  yogaStyle.setMaxDimension(yoga::Dimension::Width,
+      yoga::StyleSizeLength::points(layoutConstraints.maximumSize.width));
+  yogaStyle.setMaxDimension(yoga::Dimension::Height,
+      yoga::StyleSizeLength::points(layoutConstraints.maximumSize.height));
+  // ... min dimensions, direction ...
+
+  YGNodeCalculateLayout(&yogaNode_, ownerWidth, ownerHeight, direction);
+
+  if (yogaNode_.getHasNewLayout()) {
+    auto layoutMetrics = layoutMetricsFromYogaNode(yogaNode_);
+    layoutMetrics.pointScaleFactor = layoutContext.pointScaleFactor;
+    setLayoutMetrics(layoutMetrics);
+    yogaNode_.setHasNewLayout(false);
+  }
+  layout(layoutContext);  // walks children and propagates metrics
 }
 ```
+
+The direction is derived from `layoutConstraints.layoutDirection`, so RTL surfaces don't hard-code `YGDirectionLTR`. The `pointScaleFactor` is set per-config when a `YogaLayoutableShadowNode` is constructed (in `configureYogaTree`), not on a transient config object per commit.
 
 ### Phase 3: The Mount Phase (C++ → Native Platform)
 
-This is where abstract mutations become real UI changes:
+This is where abstract mutations become real UI changes. The platform layer pulls a `MountingTransaction` and walks its `ShadowViewMutationList`. On iOS the loop lives in a free function (not a method on `MountingCoordinator`), `RCTPerformMountInstructions` in `RCTMountingManager.mm`, and the dispatch onto the main queue happens via `RCTExecuteOnMainQueue` (which becomes `dispatch_async(dispatch_get_main_queue(), block)` if the caller is not already on main).
 
-```cpp
-// iOS Implementation
-void MountingCoordinator::mount(const MountingTransaction& transaction) {
-  // Execute on main thread
-  dispatch_async(dispatch_get_main_queue(), ^{
-    for (const auto& mutation : transaction.getMutations()) {
-      switch (mutation.type) {
-        case Mutation::Type::Create:
-          createView(mutation);
-          break;
-        case Mutation::Type::Update:
-          updateView(mutation);
-          break;
-        case Mutation::Type::Delete:
-          deleteView(mutation);
-          break;
-        case Mutation::Type::Insert:
-          insertView(mutation);
-          break;
+```objc
+// RCTMountingManager.mm (abridged)
+static void RCTPerformMountInstructions(
+    const ShadowViewMutationList &mutations,
+    RCTComponentViewRegistry *registry,
+    RCTMountingTransactionObserverCoordinator &observerCoordinator,
+    SurfaceId surfaceId) {
+  for (const auto &mutation : mutations) {
+    switch (mutation.type) {
+      case ShadowViewMutation::Create: {
+        auto &newView = mutation.newChildShadowView;
+        [registry dequeueComponentViewWithComponentHandle:newView.componentHandle
+                                                      tag:newView.tag];
+        break;
+      }
+      case ShadowViewMutation::Delete: {
+        auto &oldView = mutation.oldChildShadowView;
+        auto &descriptor = [registry componentViewDescriptorWithTag:oldView.tag];
+        [registry enqueueComponentViewWithComponentHandle:oldView.componentHandle
+                                                      tag:oldView.tag
+                                  componentViewDescriptor:descriptor];
+        break;
+      }
+      case ShadowViewMutation::Insert: {
+        auto &newView = mutation.newChildShadowView;
+        auto &childDesc = [registry componentViewDescriptorWithTag:newView.tag];
+        auto &parentDesc = [registry componentViewDescriptorWithTag:mutation.parentTag];
+        UIView<RCTComponentViewProtocol> *child = childDesc.view;
+        [child updateProps:newView.props oldProps:nullptr];
+        [child updateEventEmitter:newView.eventEmitter];
+        [child updateState:newView.state oldState:nullptr];
+        [child updateLayoutMetrics:newView.layoutMetrics
+                  oldLayoutMetrics:EmptyLayoutMetrics];
+        [child finalizeUpdates:RNComponentViewUpdateMaskAll];
+        [parentDesc.view mountChildComponentView:child index:mutation.index];
+        break;
+      }
+      case ShadowViewMutation::Remove: { /* unmount, keep view alive for reuse */ break; }
+      case ShadowViewMutation::Update: {
+        auto &oldView = mutation.oldChildShadowView;
+        auto &newView = mutation.newChildShadowView;
+        UIView<RCTComponentViewProtocol> *child =
+            [registry componentViewDescriptorWithTag:newView.tag].view;
+        // The mount applies the four orthogonal kinds of change separately:
+        // props, eventEmitter, state, layoutMetrics. Each guarded by a
+        // pointer-equality check that comes from the diff.
+        if (oldView.props != newView.props)
+          [child updateProps:newView.props oldProps:oldView.props];
+        if (oldView.eventEmitter != newView.eventEmitter)
+          [child updateEventEmitter:newView.eventEmitter];
+        if (oldView.state != newView.state)
+          [child updateState:newView.state oldState:oldView.state];
+        if (oldView.layoutMetrics != newView.layoutMetrics)
+          [child updateLayoutMetrics:newView.layoutMetrics
+                    oldLayoutMetrics:oldView.layoutMetrics];
+        [child finalizeUpdates:mask];
+        break;
       }
     }
-  });
-}
-
-void updateView(const Mutation& mutation) {
-  // Get the native view
-  UIView* view = [viewRegistry viewForTag:mutation.tag];
-  
-  // Cast to component view protocol
-  id<RCTComponentViewProtocol> componentView = (id<RCTComponentViewProtocol>)view;
-  
-  // Update props (type-safe, no serialization)
-  [componentView updateProps:mutation.newProps oldProps:mutation.oldProps];
-  
-  // Update layout if needed
-  if (mutation.layoutMetrics) {
-    [componentView updateLayoutMetrics:*mutation.layoutMetrics
-                     oldLayoutMetrics:mutation.oldLayoutMetrics];
   }
 }
 ```
 
-**Real Native View Update (iOS):**
-```objc
-// RCTViewComponentView.mm
-- (void)updateProps:(const ViewProps &)props
-           oldProps:(const ViewProps &)oldProps {
-  // Direct C++ struct access - no parsing!
-  if (props.backgroundColor != oldProps.backgroundColor) {
-    self.backgroundColor = UIColorFromColor(props.backgroundColor);
-  }
-  
-  if (props.opacity != oldProps.opacity) {
-    self.alpha = props.opacity;
-  }
-  
-  if (props.transform != oldProps.transform) {
-    self.transform3D = CATransform3DFromTransform(props.transform);
-  }
-}
+`Create` and `Delete` only manage the lifecycle in the view registry; the actual hierarchy mutations are `Insert`/`Remove` (which can fire without a `Create` when the view is being reused from the registry's pool). `Update` decomposes a mutation into four independent updates because props, event emitter, state, and layout metrics flow through different paths.
 
+**Real Native View Update (iOS):**
+
+`RCTViewComponentView::updateProps` takes `Props::Shared` (the shared pointer), not a direct `const ViewProps &`. The implementation then casts internally:
+
+```objc
+// RCTViewComponentView.mm (abridged)
+- (void)updateProps:(const facebook::react::Props::Shared &)props
+           oldProps:(const facebook::react::Props::Shared &)oldProps {
+  const auto &oldViewProps = static_cast<const ViewProps &>(*_props);
+  const auto &newViewProps = static_cast<const ViewProps &>(*props);
+
+  if (oldViewProps.opacity != newViewProps.opacity) {
+    self.layer.opacity = (float)newViewProps.opacity;
+  }
+  if (oldViewProps.backgroundColor != newViewProps.backgroundColor) {
+    self.backgroundColor = RCTUIColorFromSharedColor(newViewProps.backgroundColor);
+  }
+  if (oldViewProps.transform != newViewProps.transform) {
+    auto matrix = newViewProps.resolveTransform(_layoutMetrics);
+    self.layer.transform = RCTCATransform3DFromTransformMatrix(matrix);
+  }
+  // ... ~30 more props handled this way
+}
+```
+
+The point is "no JSON parsing on the main thread" rather than "compare C++ structs directly". The struct comparison still happens, but it's against the cached previous `Props::Shared` that the component view holds.
 
 ## React 18 Concurrent Features: Real-World Impact
 
-Fabric's C++ core enables React 18's concurrent features, transforming how React Native applications handle complex UI updates:
+Fabric runs on top of React 18. The concurrent features below are React-level features (`useTransition`, `Suspense`, automatic batching of async `setState`s) that ship with any React 18 host, including the legacy renderer in RN 0.70+. What Fabric specifically unlocks is the synchronous mount path that lets these features actually feel responsive: a `useTransition` that interrupts itself is useless if the eventual commit blocks the UI thread for 60ms on the legacy bridge. So treat the examples below as "this is what becomes practical on the New Architecture", not "this is what Fabric implements internally".
 
 ### Automatic Batching in Practice
 
-React 18's automatic batching dramatically reduces re-renders in real applications:
+React 18's automatic batching reduces re-renders when multiple `setState` calls happen in an async callback:
 
 ```jsx
 // Real-world example: Shopping cart with multiple state updates
@@ -597,10 +761,7 @@ function ShoppingCart() {
 }
 ```
 
-**Performance Metrics:**
-- **Old Architecture**: 4 renders × 16ms = 64ms total
-- **New Architecture**: 1 render × 16ms = 16ms total
-- **Result**: 75% reduction in render time
+**About the "4 renders vs 1 render" framing:** automatic batching after an `await` is a React 18 change, not a Fabric-specific change. In React 17 with the legacy renderer, multiple `setState` calls in an async callback (after a `Promise` resolution) would each trigger their own commit. In React 18, regardless of architecture, they're collapsed into one render. The win shows up in both Fabric and the legacy renderer once you're on React 18. The 75%-reduction microbenchmark above is a synthetic estimate ("4 × 16ms vs 16ms") and should be read as a back-of-envelope illustration, not a measurement.
 
 ### Transitions for Heavy Computations
 
@@ -608,12 +769,11 @@ Real-world example of filtering a large dataset:
 
 ```jsx
 function ProductCatalog() {
+  // 10,000+ products. Declared first so it's in scope for useState below.
+  const products = useLargeProductDataset();
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState(products);
   const [isPending, startTransition] = useTransition();
-  
-  // 10,000+ products to filter
-  const products = useLargeProductDataset();
   
   const handleSearch = (query) => {
     // Update search input immediately (urgent)
@@ -795,7 +955,11 @@ function TodoList() {
 
 **Citations:**
 
-[1] `packages/react-native/ReactCommon/react/renderer/core/ShadowNode.h`
-[2] `packages/react-native/ReactCommon/react/renderer/core/ComponentDescriptor.h`
-[3] `packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.h`
-[4] `packages/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.h`
+[^1]: `packages/react-native/ReactCommon/react/renderer/core/ShadowNode.h`
+[^2]: `packages/react-native/ReactCommon/react/renderer/core/ComponentDescriptor.h`
+[^3]: `packages/react-native/ReactCommon/react/renderer/mounting/ShadowTree.h` and `ShadowTree.cpp` for the `tryCommit` body.
+[^4]: `packages/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.h` and `.mm`.
+[^5]: `packages/react-native/ReactCommon/react/renderer/core/LayoutableShadowNode.h`
+[^6]: `packages/react-native/ReactCommon/react/renderer/core/ConcreteComponentDescriptor.h`
+[^7]: `packages/react-native/ReactCommon/react/renderer/uimanager/UIManager.h` and `UIManagerBinding.cpp` for the JSI host function shape (`nativeFabricUIManager.createNode`).
+[^8]: `packages/react-native/ReactCommon/react/renderer/mounting/Differentiator.h` (`calculateShadowViewMutations`), driven from `MountingCoordinator::pullTransaction` in `MountingCoordinator.cpp`.
