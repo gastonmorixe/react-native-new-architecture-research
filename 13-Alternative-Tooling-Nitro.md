@@ -2,7 +2,7 @@
 title: "Alternative tooling: Nitro"
 chapter: "13"
 created_at: "2025-09-22T15:30:19-04:00"
-updated_at: "2026-05-23T16:13:44-0400"
+updated_at: "2026-05-23T19:58:00-0400"
 session_id: "audit-worker-13-nitro"
 host_info:
   hostname: "macbookpro.home.arpa"
@@ -30,13 +30,14 @@ audit:
 taillog:
   - "2025-09-22T15:30:19-04:00 | Initial draft (RN 0.81.4 era)"
   - "2026-05-23T16:13:44-0400 | Source-grounded audit pass against RN 0.86 (commit b32a6c9e9db) and Nitro v0.35.7 (commit 326d3e4b). Fixed chapter number, corrected fabricated benchmark / hot-reload / IDE claims, replaced with Nitro's own published numbers and accurate feature list, fixed stale doc-path footnotes, added RN source citations for NativeState / HostObject / TurboModule. See _verification/chapters/13-nitro/report.md."
+  - "2026-05-23T19:58:00-0400 | Second-pass recheck against actual Nitro source at /tmp/nitro (commit 326d3e4b, v0.35.7). Ran nitrogen 0.35.7 on a toy spec (`tests/toy-spec/Math.nitro.ts`) and confirmed: 21 files emitted, prototype-based dispatch in generated .cpp, three-piece Swift pattern. Replaced 'will not parse' with the actual nitrogen error for generic specs. Added the Nitro-bootstraps-as-a-TurboModule note. Softened the 'HostObject can't be cached by JS Runtime' framing because TurboModule.h:55-65 does set up post-first-call setProperty caching. Documented C++/Swift/Kotlin platform-language pairs and the `nitro.json` autolinking requirement. Citations now include `tmp/nitro/...` source paths. See _verification/recheck/nitro/report.md."
 ---
 
 # Chapter 14: Alternative Tooling - Nitro
 
 While the standard New Architecture tools (CodeGen, TurboModules, Fabric) provide the fundamental building blocks, the ecosystem is evolving with higher-level tooling designed to simplify the developer experience and push performance even further. One prominent example of this is **Nitro**.
 
-Nitro is an opinionated, high-performance framework for building native modules that sits on top of the JSI, acting as an alternative and enhancement to the standard TurboModule workflow.[^1] At the time of this audit, the current stable release is **Nitro v0.35.7** (May 2026) and the minimum supported React Native version is **0.75**.[^7]
+Nitro is an opinionated, high-performance framework for building native modules that sits on top of the JSI, acting as an alternative and enhancement to the standard TurboModule workflow.[^1] At the time of this audit, the current stable release is **Nitro v0.35.7** (May 2026) and the documented minimum React Native version is **0.75**.[^7] (The package's own `peerDependencies` are wildcarded (`react-native: "*"`), so the 0.75 floor is enforced by the iOS/Android build requirements rather than by npm. Internal development of v0.35.7 tracks React Native 0.83.0 via the package's devDependencies.)
 
 **Status (2026):** Nitro is production-ready and has broad adoption in the ecosystem. Libraries built on top of it include `react-native-vision-camera`, `react-native-mmkv`, `react-native-quick-crypto`, `@rive-app/react-native`, `react-native-video`, `react-native-fast-tflite`, `react-native-nitro-sqlite`, and dozens of others.[^8]
 
@@ -59,7 +60,9 @@ const image = await ImageFactory.loadImage(imagePath);
 const processedImage: Image = ImageEditor.crop(image, rect);
 ```
 
-In practice, a JS consumer creates the root Hybrid Object via `NitroModules.createHybridObject<T>('Name')`, and a Hybrid Object method can return another Hybrid Object directly. The JS-side `image` variable holds a real reference to the underlying native object, so subsequent native calls can operate on it without re-serializing through a path or ID.[^2]
+In practice, a JS consumer creates the root Hybrid Object via `NitroModules.createHybridObject<T>('Name')`, and a Hybrid Object method can return another Hybrid Object directly. The JS-side `image` variable holds a real reference to the underlying native object, so subsequent native calls can operate on it without re-serializing through a path or ID.[^2] On the C++ side, the `HybridObjectRegistry` stores *constructor functions* keyed by name, not instances (`std::unordered_map<std::string, std::function<std::shared_ptr<HybridObject>()>>`), so `createHybridObject<T>(name)` calls the registered constructor each time and returns a fresh native object.[^23]
+
+Note that Nitro itself is bootstrapped *as* a TurboModule: `react-native-nitro-modules` ships a single TurboModule named `NitroModules` whose only method is `install()`, which installs the `NitroModulesProxy` Hybrid Object onto JS `global`. After that one-time install, all `NitroModules.createHybridObject<T>(...)` calls and every method on every Hybrid Object go through `global.NitroModulesProxy` directly via JSI, not through TurboModule machinery.[^24] So Nitro doesn't replace TurboModules at the React Native loader level; it bootstraps via a TurboModule shim and then runs above JSI.
 
 ### The `nitrogen` Code Generator
 
@@ -69,6 +72,20 @@ Nitro comes with its own code generator, `nitrogen`. It serves the same purpose 
 - **`nitrogen`:** Is designed to be run by the **library author**. The generated C++, Swift, and Kotlin interface code is committed to the library's repository and published with the npm package, so the consumer of the library never runs nitrogen themselves.[^3]
 
 A practical consequence: Nitrogen can also resolve imports across files (so a spec can `import type` from a sibling), whereas standard codegen cannot.[^4]
+
+What nitrogen actually emits, concretely: an 8-line `Math.nitro.ts` with one `readonly pi: number` getter and one `add(a: number, b: number): number` method, configured for `{ ios: 'swift', android: 'kotlin' }`, produces 21 files across three platforms in `nitrogen/generated/`.[^25] The shared `HybridMathSpec.cpp` registers the prototype:[^22]
+
+```cpp
+void HybridMathSpec::loadHybridMethods() {
+  HybridObject::loadHybridMethods();
+  registerHybrids(this, [](Prototype& prototype) {
+    prototype.registerHybridGetter("pi", &HybridMathSpec::getPi);
+    prototype.registerHybridMethod("add", &HybridMathSpec::add);
+  });
+}
+```
+
+The Swift side comes in three pieces (`HybridMathSpec_protocol`, `HybridMathSpec_base`, and a `HybridMathSpec_cxx` bridge wrapper, glued together with a public typealias `HybridMathSpec = HybridMathSpec_protocol & HybridMathSpec_base`), and the Kotlin side is an abstract class annotated with `@DoNotStrip` / `@Keep` plus a JNI `HybridData` `CxxPart`. Each Hybrid Object also needs an `autolinking` entry in `nitro.json` that pins the implementation class name per platform, otherwise the generated `*Autolinking.swift`/`*OnLoad.kt` won't include it and the runtime registry can't find the constructor at startup.[^26]
 
 ## Key Differentiators and Performance Claims
 
@@ -83,9 +100,9 @@ Nitro's documentation publishes a microbenchmark that measures the total executi
 | `addNumbers(...)` × 100,000     | 434.85 ms   | 115.86 ms    | **7.27 ms**  |
 | `addStrings(...)`  × 100,000    | 429.53 ms   | 179.02 ms    | **29.94 ms** |
 
-That puts Nitro at roughly **16x faster than TurboModules on `addNumbers` and ~6x faster on `addStrings`** in the synthetic benchmark.[^4] Nitro's own docs are explicit that the numbers reflect "extreme cases" and "do not necessarily reflect real world use-cases". For typical app workloads the gap is much smaller.[^4] Nitro attributes the difference to two architectural decisions:
+That puts Nitro at roughly **16x faster than TurboModules on `addNumbers` and ~6x faster on `addStrings`** in the synthetic benchmark.[^4] Nitro's own docs are explicit that the numbers reflect "extreme cases" and "do not necessarily reflect real world use-cases". For typical app workloads the gap is much smaller.[^4] The benchmark itself is reproducible inside Nitro's own example app: `example/src/screens/BenchmarksScreen.tsx` runs `addNumbers(...)` 100,000 times against both an `ExampleTurboModule` and `HybridTestObjectSwiftKotlin` with a single warmup call and `performance.now()` around the loop.[^27] Nitro attributes the difference to two architectural decisions:
 
-- **`jsi::NativeState` vs. `jsi::HostObject`:** Standard TurboModules are implemented using `jsi::HostObject`. The RN source confirms this directly: `class JSI_EXPORT TurboModule : public jsi::HostObject` (TurboModule.h:46).[^12] Nitro's `HybridObject`s are built on top of `jsi::NativeState` (jsi.h:255).[^13] With `HostObject`, every property access calls back into native via the virtual `get()` callback, so the JS engine cannot cache the result on its hidden class. With `NativeState`, the Hybrid Object is a real JS object with concrete native getters installed once on the prototype, which the engine's inline caches can hit. Nitro pairs this with `Object::setExternalMemoryPressure` (jsi.h:1422-1430) to inform the GC about the native side's memory footprint, helping the collector free unused Hybrid Objects more aggressively.[^4]
+- **`jsi::NativeState` vs. `jsi::HostObject`:** Standard TurboModules are implemented using `jsi::HostObject`. The RN source confirms this directly: `class JSI_EXPORT TurboModule : public jsi::HostObject` (TurboModule.h:46).[^12] Nitro's `HybridObject`s are built on top of `jsi::NativeState` (jsi.h:255).[^13] With `HostObject`, the *first* access to each property goes through the virtual `get()` callback in C++. TurboModule's `get()` does add post-first-call caching by writing the resolved method onto the JS representation via `setProperty` (TurboModule.h:55-65),[^21] but the cost of the first call and the indirection through `MethodMetadata.invoker` are still there. With `NativeState`, nitrogen-generated C++ installs concrete getters and methods on a shared `Prototype` once per type (`prototype.registerHybridGetter(...)`, `prototype.registerHybridMethod(...)`),[^22] before any JS call. The prototype is cached per `jsi::Runtime` and assigned to every Hybrid Object instance, so JS-engine inline caches can lock onto the slot the first time a property is read. Nitro pairs this with `Object::setExternalMemoryPressure` (jsi.h:1422-1430) to inform the GC about the native side's memory footprint, helping the collector free unused Hybrid Objects more aggressively.[^4]
 - **Direct Swift & C++ Interop:** For iOS, Nitro requires Swift 5.9 or higher and uses the official [Swift `<>` C++ interop](https://www.swift.org/documentation/cxx-interop/).[^7] This lets the C++ JSI layer call Swift code directly. The call path is `JS → C++ → Swift`, whereas TurboModules go `JS → C++ → Objective-C → Swift` when the underlying implementation is Swift.[^4]
 
 **2. Richer Type Support**
@@ -118,7 +135,16 @@ interface Server extends HybridObject<{ ios: 'swift' }> {
 }
 ```
 
-Note that nitrogen does **not** support user-defined generic interfaces as Hybrid Object specs. The generic parameter on `HybridObject<{ ... }>` is reserved for platform language selection. A spec like `interface Repository<T> extends HybridObject<{ ... }>` will not parse. The only generics in nitrogen's surface area are the built-in ones (`Promise<T>`, `Sync<T>`, `Array<T>`, `Record<string, T>`, `Variant<...>`, etc.).[^20]
+Note that nitrogen does **not** support user-defined generic interfaces as Hybrid Object specs. The generic parameter on `HybridObject<{ ... }>` is reserved for the `PlatformSpec`, which has shape `{ ios?: 'c++' | 'swift'; android?: 'c++' | 'kotlin' }` (both keys optional, so a spec can target only iOS or only Android).[^20] A spec like `interface Repository<T> extends HybridObject<{ ... }>` parses fine on the TypeScript side, and nitrogen even recognizes it as a Hybrid Object, but it fails at code generation because `T` has no native representation. Running nitrogen 0.35.7 against that spec emits:
+
+```
+⏳  Parsing Repository.nitro.ts...
+    ⚙️   Generating specs for HybridObject "Repository"...
+        ❌  Failed to generate spec for Repository! Error: The TypeScript type "T" cannot be represented in C++!
+    ❌  No specs found in Repository.nitro.ts!
+```
+
+(Reproducible run is in `_verification/recheck/nitro/tests/toy-spec/`.) The only generics in nitrogen's surface area are the built-in ones (`Promise<T>`, `Sync<T>`, `Array<T>`, `Record<string, T>`, `Variant<...>`, etc.).
 
 ### Developer experience
 
@@ -155,4 +181,11 @@ For developers seeking very high throughput on JS-native calls, an object-orient
 [^17]: RN source: `packages/react-native/src/private/specs_DEPRECATED/modules/NativeSampleTurboModule.js:54` (`getValueWithCallback: (callback: (value: string) => void) => void`).
 [^18]: RN source: `packages/react-native-codegen/src/parsers/error-utils.js:128-142` (`throwIfUnsupportedFunctionReturnTypeAnnotationParserError`).
 [^19]: Nitro docs: `docs/docs/types/custom-enums.md` ("TypeScript union" section: a union of literal strings is mapped to a native enum backed by compile-time string hashes, and the union must be aliased to a named type).
-[^20]: Nitro source: `packages/nitrogen/src/getPlatformSpecs.ts:169` (the type arguments on `HybridObject<...>` are interpreted as the platform-language spec, not as user-defined type parameters).
+[^20]: Nitro source: `tmp/nitro/packages/react-native-nitro-modules/src/HybridObject.ts:7-33` (`interface PlatformSpec { ios?: 'c++' | 'swift'; android?: 'c++' | 'kotlin' }`, both keys optional, used as the constraint on `HybridObject<Platforms extends PlatformSpec>`) and `tmp/nitro/packages/nitrogen/src/getPlatformSpecs.ts:169-180` (nitrogen reads `base.getTypeArguments()[0]` as the platform spec). The C++ runtime side at `tmp/nitro/packages/react-native-nitro-modules/cpp/core/HybridObject.hpp:27` is a non-template class (`class HybridObject : public virtual jsi::NativeState, public HybridObjectPrototype, ...`), confirming that the only "generic" surface is the TS-side `Platforms` argument.
+[^21]: RN source: `packages/react-native/ReactCommon/react/nativemodule/core/ReactCommon/TurboModule.h:50-65` (`get(...)` calls `create(...)` and, on hit, runs `jsRepresentation_->lock(runtime).asObject(runtime).setProperty(runtime, propName, prop)`. First access goes through the virtual `get()`; subsequent accesses hit the cached JS property).
+[^22]: Nitro source: `tmp/nitro/packages/react-native-nitro-modules/cpp/prototype/HybridObjectPrototype.hpp:26-30` ("The prototype should be cached per Runtime, and can be assigned to multiple jsi::Objects. When assigned to a jsi::Object, all methods of this prototype can be called on that jsi::Object, as long as it has a valid NativeState (`this`)."). Generated call sites: `_verification/recheck/nitro/tests/toy-spec/nitrogen/generated/shared/c++/HybridMathSpec.cpp:12-19` (`prototype.registerHybridGetter("pi", ...)`; `prototype.registerHybridMethod("add", ...)`).
+[^23]: Nitro source: `tmp/nitro/packages/react-native-nitro-modules/cpp/registry/HybridObjectRegistry.hpp:20-46` (`using HybridObjectConstructorFn = std::function<std::shared_ptr<HybridObject>()>; static void registerHybridObjectConstructor(const std::string& hybridObjectName, HybridObjectConstructorFn&& constructorFn); static std::shared_ptr<HybridObject> createHybridObject(const std::string& hybridObjectName);`). The registry stores constructors, not instances.
+[^24]: Nitro source: `tmp/nitro/packages/react-native-nitro-modules/src/turbomodule/NativeNitroModules.ts:1-56` (`import { TurboModuleRegistry } from 'react-native'`; `interface Spec extends TurboModule { install(): string | undefined }`; `turboModule = TurboModuleRegistry.getEnforcing<Spec>('NitroModules'); const errorMessage = turboModule.install(); ... nitroModules = getInstalledNitro()` where `getInstalledNitro` reads `global.NitroModulesProxy`). On old-arch iOS: `tmp/nitro/packages/react-native-nitro-modules/ios/turbomodule/NativeNitroModules+OldArch.mm:34` (`RCT_EXPORT_BLOCKING_SYNCHRONOUS_METHOD(install)`).
+[^25]: Reproducible: `_verification/recheck/nitro/tests/toy-spec/` contains `Math.nitro.ts`, `nitro.json`, and `nitrogen/generated/` with 21 files (2 shared C++, 2 iOS C++ bridge, 2 Swift, 6 iOS autolinking/umbrella, 2 Android C++ JNI, 2 Kotlin, 4 Android autolinking/loader, 1 `.gitattributes`). Nitrogen 0.35.7 produced these in 0.9s; see `run.log` next to the spec.
+[^26]: Nitro source: `tmp/nitro/packages/react-native-nitro-test/nitro.json` is the canonical example. Each Hybrid Object has an `autolinking` entry mapping `ios.implementationClassName` and `android.implementationClassName` to the concrete native classes that satisfy the generated spec.
+[^27]: Nitro source: `tmp/nitro/example/src/screens/BenchmarksScreen.tsx:42-65` (`function benchmark(obj: BenchmarkableObject): number { obj.addNumbers(0, 3); const start = performance.now(); let num = 0; for (let i = 0; i < ITERATIONS; i++) { num = obj.addNumbers(num, 3); } const end = performance.now(); return end - start; }` with `ITERATIONS = 100_000`). The same shape is published at `mrousavy/NitroBenchmarks` for cross-environment runs.

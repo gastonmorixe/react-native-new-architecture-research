@@ -81,7 +81,7 @@ However, in some very simple, static rendering scenarios, the overhead of the ne
 
 **Citations:**
 
-[^1]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/landing-page](https://reactnative.dev/docs/next/the-new-architecture/landing-page)
+[^1]: "About the New Architecture". React Native Documentation. [https://reactnative.dev/architecture/landing-page](https://reactnative.dev/architecture/landing-page). (The `/docs/next/the-new-architecture/landing-page` URL still works via an internal `vercel.json` redirect, but the canonical URL is this one.)
 [^2]: "React Native 0.74 - Yoga 3.0, Bridgeless New Architecture, and more". React Native Blog. [https://reactnative.dev/blog/2024/04/22/release-0.74](https://reactnative.dev/blog/2024/04/22/release-0.74). The matching CHANGELOG entries are "Make bridgeless the default when the New Arch is enabled" for both Android and iOS in the v0.74.0 section.
 [^3]: "Turbo Native Modules". React Native Documentation. [https://reactnative.dev/docs/next/turbo-native-modules-introduction](https://reactnative.dev/docs/next/turbo-native-modules-introduction)
 [^4]: "Using Codegen". React Native Documentation. [https://reactnative.dev/docs/next/the-new-architecture/using-codegen](https://reactnative.dev/docs/next/the-new-architecture/using-codegen)
