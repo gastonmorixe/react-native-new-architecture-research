@@ -76,21 +76,6 @@ verified-against version is `v0.86.0-rc.1` (RN `main` HEAD at the time
 of the audit). See [`CHANGELOG.md`](./CHANGELOG.md) for the per-version
 delta.
 
-### Audit branches in this repo
-
-- `main` — the public, signed history of the book.
-- `gm/wip` — author's working branch; usually equal to `main` between
-  audit passes.
-- `audit/baseline-<date>` — pre-audit snapshot of in-progress edits.
-  Preserved as a safety net for each audit pass.
-- `audit/verified-<date>` — the result of an audit pass. Merged into
-  `main` once reviewed.
-
-The audit workspace (per-chapter claims, runnable tests, source-cite
-reports, HTTP debug dumps) lives under `_verification/` and is
-gitignored. It is local-only by design; running the audit yourself
-recreates it. Per-chapter taillog entries record what each audit pass
-changed.
 
 ### Contributing
 
