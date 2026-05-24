@@ -4,12 +4,6 @@ chapter: "README"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T20:58:29-0400"
 session_id: "audit-worker-readme"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5 (..)"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"
@@ -22,11 +16,6 @@ rn_version_current:
   date: "2026-05-22"
   note: "Upstream RN main HEAD as of the audit. Past v0.86.0-rc.1 by ~30 commits."
 tags: [react-native, new-architecture, readme, table-of-contents, overview]
-audit:
-  status: "verified"
-  baseline_branch: "audit/baseline-2026-05-23"
-  verified_branch: "audit/verified-2026-05-23"
-  report: "_verification/chapters/readme/report.md"
 taillog:
   - "2025-09-22T15:30:19-04:00 | Initial draft (RN 0.81.4 era)"
   - "2026-05-23T16:14:43-0400 | Source-grounded audit pass against RN 0.86 (commit b32a6c9e9db). Refreshed the stale '0.82+' version pin to '0.86' and verified link integrity for all 16 chapter files plus the five Mermaid diagrams referenced in the intro. See _verification/chapters/readme/report.md."
