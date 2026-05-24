@@ -2,7 +2,7 @@
 title: "A comprehensive report on the React Native New Architecture"
 chapter: "README"
 created_at: "2025-09-22T15:30:19-04:00"
-updated_at: "2026-05-23T16:14:43-0400"
+updated_at: "2026-05-23T20:58:29-0400"
 session_id: "audit-worker-readme"
 host_info:
   hostname: "macbookpro.home.arpa"
@@ -30,6 +30,7 @@ audit:
 taillog:
   - "2025-09-22T15:30:19-04:00 | Initial draft (RN 0.81.4 era)"
   - "2026-05-23T16:14:43-0400 | Source-grounded audit pass against RN 0.86 (commit b32a6c9e9db). Refreshed the stale '0.82+' version pin to '0.86' and verified link integrity for all 16 chapter files plus the five Mermaid diagrams referenced in the intro. See _verification/chapters/readme/report.md."
+  - "2026-05-23T20:58:29-0400 | Added Status badge, CHANGELOG link, Version & audit section, repo .gitignore. Recheck phase 5 results (chapters 13 Vision Camera v5 + 14 Nitro nitrogen 0.35.7 + docs URL audit across all chapters) folded into the same audit/verified branch."
 ---
 
 # A Comprehensive Report on the React Native New Architecture
@@ -38,9 +39,22 @@ taillog:
 
 This document serves as the central hub for a detailed, 16-chapter report on the significant evolution in the React Native framework. The research is conducted by analyzing the official React Native repository, authoritative documentation, and real-world libraries to provide a comprehensive and up-to-date understanding of the new architecture.
 
-**Updated for React Native 0.76+ (audit pass 2026-05):** This documentation has been thoroughly updated to reflect the current state of the New Architecture, which is now enabled by default in all React Native projects.[^1] The information is verified against the React Native `main` branch at commit `b32a6c9e9db` (v0.86.0-rc.1 era) and official documentation.
+**Status:** verified against React Native `main` at commit
+[`b32a6c9e9db`](https://github.com/facebook/react-native/commit/b32a6c9e9db2284547183e2d48ffa0a45a73fbc6)
+(v0.86.0-rc.1 era, audit pass 2026-05-23). Cross-checked against the
+[`react-native-vision-camera`](https://github.com/mrousavy/react-native-vision-camera)
+v5.0.10 source, [`nitro`](https://github.com/mrousavy/nitro) v0.35.7,
+and the [`react-native-website`](https://github.com/facebook/react-native-website)
+repo. See [`CHANGELOG.md`](./CHANGELOG.md) for the audit's full delta and
+each chapter's YAML frontmatter `taillog` for per-chapter history.
 
-Tip: Many chapters now include Mermaid diagrams (rendered on GitHub) to visualize the Bridge vs JSI call paths, Fabric’s render pipeline, TurboModule CodeGen, Bridgeless interop, and the migration flow.
+This documentation has been thoroughly updated to reflect the current
+state of the New Architecture, which is now enabled by default in all
+React Native projects.[^1]
+
+Tip: Many chapters now include Mermaid diagrams (rendered on GitHub) to
+visualize the Bridge vs JSI call paths, Fabric's render pipeline,
+TurboModule CodeGen, Bridgeless interop, and the migration flow.
 
 ---
 
@@ -86,6 +100,39 @@ Tip: Many chapters now include Mermaid diagrams (rendered on GitHub) to visualiz
     *   A hands-on tutorial building a simple Fabric component and TurboModule from scratch.
 *   [Chapter 16: Additional Resources and Checklists](./15-Additional-Resources-and-Checklists.md)
     *   A collection of useful checklists and resources for migration and development.
+
+---
+
+## Version and audit
+
+This book is versioned against the React Native version it is
+**verified against**, not against an internal version. The current
+verified-against version is `v0.86.0-rc.1` (RN `main` HEAD at the time
+of the audit). See [`CHANGELOG.md`](./CHANGELOG.md) for the per-version
+delta.
+
+### Audit branches in this repo
+
+- `main` — the public, signed history of the book.
+- `gm/wip` — author's working branch; usually equal to `main` between
+  audit passes.
+- `audit/baseline-<date>` — pre-audit snapshot of in-progress edits.
+  Preserved as a safety net for each audit pass.
+- `audit/verified-<date>` — the result of an audit pass. Merged into
+  `main` once reviewed.
+
+The audit workspace (per-chapter claims, runnable tests, source-cite
+reports, HTTP debug dumps) lives under `_verification/` and is
+gitignored. It is local-only by design; running the audit yourself
+recreates it. Per-chapter taillog entries record what each audit pass
+changed.
+
+### Contributing
+
+Pull requests are welcome. If you find a factual error against a
+specific RN release, please cite an `<rn-source-path>:<line>` reference
+or a CHANGELOG entry. The book aims to be source-grounded; PR
+descriptions should follow that bar.
 
 ---
 

@@ -1,0 +1,104 @@
+# ---------------------------------------------------------------------------
+# .gitignore for the React Native New Architecture Research book
+#
+# This is a documentation repo (markdown chapters + audit workspace). It is
+# not a build target. Patterns below cover OS / editor / audit-workspace
+# noise. Keep this file conservative; if a future contributor wants to track
+# something matched here, they can use `git add -f`.
+# ---------------------------------------------------------------------------
+
+# -------- OS metadata --------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -------- Editor / IDE --------
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.fleet/
+.zed/
+.cursor/
+.history/
+*.code-workspace
+nbproject/
+
+# -------- Audit workspace --------
+# The chapter audit lives under _verification/ (see docs/audit-workflow.md
+# if added). It contains per-chapter claims, tests, reports, and HTTP debug
+# dumps that should not be committed. Sub-paths called out explicitly so
+# a contributor running the audit knows what's intentionally local.
+_verification/
+
+# Debug dumps from minimal-agent's MINIMAL_AGENT_NET_DBG=1 flag (per-cwd)
+.net-dbg/
+
+# -------- Node / Bun / package managers --------
+node_modules/
+.pnp/
+.pnp.*
+.yarn/cache
+.yarn/install-state.gz
+.npm/
+.pnpm-store/
+.bun/
+
+# Lockfiles: leave UNCOMMITTED in this docs repo since there is no app to
+# pin. If a future apps/ subdir wants its own lockfile, this can be relaxed
+# per-subdirectory with a nested .gitignore.
+bun.lock
+bun.lockb
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# -------- Build outputs --------
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# -------- Test / coverage / cache --------
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.turbo/
+.vitest-cache/
+
+# -------- Logs and tmp --------
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# -------- Env / secrets (defensive; no app here, but never commit these) --------
+.env
+.env.*
+!.env.example
+
+# -------- Misc backups --------
+*.bak
+*.orig
+*.rej
+
+# -------- Python (in case any verification script uses it) --------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# -------- Common scratch from automated agents --------
+PROGRESS.md.bak
+*.tmp.md
