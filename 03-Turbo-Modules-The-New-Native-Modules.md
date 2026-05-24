@@ -3,13 +3,6 @@ title: "TurboModules: the new native modules"
 chapter: "03"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T16:25:19-0400"
-session_id: "audit-worker-03-turbo-modules"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5 (..)"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"

@@ -3,13 +3,6 @@ title: "Performance analysis"
 chapter: "07"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T16:11:53-0400"
-session_id: "d124454a-130a-47ac-be79-c01269dccf84"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5 (..)"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"

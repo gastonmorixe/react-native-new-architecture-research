@@ -31,9 +31,9 @@ source-grounded footnotes, full YAML frontmatter on every chapter.
 
 - YAML frontmatter on all 18 chapter files (chapters 1-16 plus `README.md`
   and `NOTES.md`). Fields: `title`, `chapter`, `created_at`, `updated_at`,
-  `session_id`, `host_info`, `rn_version_origin`, `rn_version_current`,
-  `tags`, `audit`, `taillog`. Frontmatter schema in
-  `_verification/shared/yaml-frontmatter-schema.md` (audit workspace).
+  `rn_version_origin`, `rn_version_current`, `tags`, `audit`, `taillog`.
+  Frontmatter schema in `_verification/shared/yaml-frontmatter-schema.md`
+  (audit workspace).
 - ~120 source-grounded footnotes across all chapters. Each cites a specific
   RN source path with line numbers, a CHANGELOG entry, or an external
   source. Footnote pattern is the existing `[^N]` style.
@@ -221,6 +221,3 @@ v0.81.4 (released 2025-09-10).
   migration flow.
 - `LICENSE` (MIT), `README.md` table of contents, `NOTES.md` author
   logbook.
-
-[0.86.0-rc.1]: https://github.com/gastonmorixe/react-native-new-architecture-research/releases/tag/v0.86.0-rc.1
-[0.81.4]: https://github.com/gastonmorixe/react-native-new-architecture-research/commit/c6c8926

@@ -3,13 +3,6 @@ title: "Alternative tooling: Nitro"
 chapter: "13"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T19:58:00-0400"
-session_id: "audit-worker-13-nitro"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5 (..)"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"

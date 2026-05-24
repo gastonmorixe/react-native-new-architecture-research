@@ -3,13 +3,6 @@ title: "Fabric - The New Renderer"
 chapter: "02"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T16:17:21-0400"
-session_id: "audit-worker-02-fabric"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"

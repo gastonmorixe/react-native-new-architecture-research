@@ -3,13 +3,6 @@ title: "Introduction: the why"
 chapter: "00"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T16:19:57-04:00"
-session_id: "audit-worker-00-introduction"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5 (Darwin)"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"

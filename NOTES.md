@@ -3,13 +3,6 @@ title: "Research session notes"
 chapter: "NOTES"
 created_at: "2025-09-22T15:30:19-04:00"
 updated_at: "2026-05-23T16:15:34-04:00"
-session_id: "a71446a1-965b-45ca-a3e0-bca4e46051da"
-host_info:
-  hostname: "macbookpro.home.arpa"
-  user: "gaston"
-  os: "macOS 26.5 (..)"
-  kernel: "25.5.0"
-  arch: "arm64"
 rn_version_origin:
   version: "0.81.4"
   tag: "v0.81.4"
